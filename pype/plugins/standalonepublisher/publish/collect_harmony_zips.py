@@ -1,13 +1,13 @@
+# -*- coding: utf-8 -*-
+"""Collect zips as Harmony scene files."""
 import copy
-import glob
-import os
 from pprint import pformat
 
 import pyblish.api
 
 
 class CollectHarmonyZips(pyblish.api.InstancePlugin):
-    """Collect Harmony zipped projects"""
+    """Collect Harmony zipped projects."""
 
     order = pyblish.api.CollectorOrder + 0.497
     label = "Collect Harmony Zipped Projects"
@@ -19,6 +19,7 @@ class CollectHarmonyZips(pyblish.api.InstancePlugin):
     ignored_instance_data_keys = ("name", "label", "stagingDir", "version")
 
     def process(self, instance):
+        """Plugin entry point."""
         context = instance.context
         asset_data = instance.context.data["assetEntity"]
         asset_name = instance.data["asset"]

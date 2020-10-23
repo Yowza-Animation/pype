@@ -1,8 +1,10 @@
+# -*- coding: utf-8 -*-
+"""Extract template."""
 import os
 import shutil
 
 import pype.api
-import avalon.harmony
+from avalon import harmony
 import pype.hosts.harmony
 
 
@@ -14,117 +16,97 @@ class ExtractTemplate(pype.api.Extractor):
     families = ["scene"]
 
     def process(self, instance):
+        """Plugin entry point."""
         staging_dir = self.staging_dir(instance)
-        filepath = os.path.join(staging_dir, "{}.tpl".format(instance.name))
+        filepath = os.path.join(staging_dir, f"{instance.name}.tpl")
 
-        self.log.info("Outputting template to {}".format(staging_dir))
+        self.log.info(f"Outputting template to {staging_dir}")
 
         dependencies = []
-        self.log.info(instance.data)
-        if instance.data["family"] in ["scene", "workfile"]:
-            self.get_dependencies(instance[0], dependencies)
+        self.get_dependencies(instance[0], dependencies)
 
-            # Get backdrops.
-            backdrops = {}
-            for dependency in dependencies:
-                for backdrop in self.get_backdrops(dependency):
-                    backdrops[backdrop["title"]["text"]] = backdrop
-            unique_backdrops = [backdrops[x] for x in set(backdrops.keys())]
+        # Get backdrops.
+        backdrops = {}
+        for dependency in dependencies:
+            for backdrop in self.get_backdrops(dependency):
+                backdrops[backdrop["title"]["text"]] = backdrop
+        unique_backdrops = [backdrops[x] for x in set(backdrops.keys())]
 
-            # Get non-connected nodes within backdrops.
-            all_nodes = avalon.harmony.send(
-                {"function": "node.subNodes", "args": ["Top"]}
-            )["result"]
-            for node in [x for x in all_nodes if x not in dependencies]:
-                within_unique_backdrops = bool(
-                    [x for x in self.get_backdrops(node) if x in unique_backdrops]
-                )
-                if within_unique_backdrops:
-                    dependencies.append(node)
-
-            # Make sure we dont export the instance node.
-            if instance[0] in dependencies:
-                dependencies.remove(instance[0])
-
-            # Export template.
-            pype.hosts.harmony.export_template(
-                unique_backdrops, dependencies, filepath
+        # Get non-connected nodes within backdrops.
+        all_nodes = instance.context.data.get("allNodes")
+        for node in [x for x in all_nodes if x not in dependencies]:
+            within_unique_backdrops = bool(
+                [x for x in self.get_backdrops(node) if x in unique_backdrops]
             )
+            if within_unique_backdrops:
+                dependencies.append(node)
 
-            # Prep representation.
-            os.chdir(staging_dir)
-            shutil.make_archive(
-                "{}".format(instance.name),
-                "zip",
-                os.path.join(staging_dir, "{}.tpl".format(instance.name))
-            )
+        # Make sure we dont export the instance node.
+        if instance[0] in dependencies:
+            dependencies.remove(instance[0])
 
-            representation = {
-                "name": "tpl",
-                "ext": "zip",
-                "files": "{}.zip".format(instance.name),
-                "stagingDir": staging_dir
-            }
-            self.log.info(instance.data.get("representations"))
-            if instance.data.get("representations"):
-                instance.data["representations"].extend([representation])
-            else:
-                instance.data["representations"] = [representation]
+        # Export template.
+        pype.hosts.harmony.export_template(
+            unique_backdrops, dependencies, filepath
+        )
 
-            instance.data["version_name"] = "{}_{}". \
-                format(instance.data["subset"],
-                       os.environ["AVALON_TASK"])
+        # Prep representation.
+        os.chdir(staging_dir)
+        shutil.make_archive(
+            f"{instance.name}",
+            "zip",
+            os.path.join(staging_dir, f"{instance.name}.tpl")
+        )
 
-    def get_backdrops(self, node):
-        func = """function func(probe_node)
-        {
-            var backdrops = Backdrop.backdrops("Top");
-            var valid_backdrops = [];
-            for(var i=0; i<backdrops.length; i++)
-            {
-                var position = backdrops[i].position;
-
-                var x_valid = false;
-                var node_x = node.coordX(probe_node);
-                if (position.x < node_x && node_x < (position.x + position.w)){
-                    x_valid = true
-                };
-
-                var y_valid = false;
-                var node_y = node.coordY(probe_node);
-                if (position.y < node_y && node_y < (position.y + position.h)){
-                    y_valid = true
-                };
-
-                if (x_valid && y_valid){
-                    valid_backdrops.push(backdrops[i])
-                };
-            }
-            return valid_backdrops;
+        representation = {
+            "name": "tpl",
+            "ext": "zip",
+            "files": f"{instance.name}.zip",
+            "stagingDir": staging_dir
         }
-        func
-        """
-        return avalon.harmony.send(
-            {"function": func, "args": [node]}
-        )["result"]
 
-    def get_dependencies(self, node, dependencies):
-        func = """function func(args)
-        {
-            var target_node = args[0];
-            var numInput = node.numberOfInputPorts(target_node);
-            var dependencies = [];
-            for (var i = 0 ; i < numInput; i++)
+        self.log.info(instance.data.get("representations"))
+        if instance.data.get("representations"):
+            instance.data["representations"].extend([representation])
+        else:
+            instance.data["representations"] = [representation]
+
+        instance.data["version_name"] = "{}_{}".format(
+            instance.data["subset"], os.environ["AVALON_TASK"])
+
+    def get_backdrops(self, node: str) -> list:
+        """Get backdrops for the node.
+
+        Args:
+            node (str): Node path.
+
+        Returns:
+            list: list of Backdrops.
+
+        """
+        self_name = self.__class__.__name__
+        return harmony.send({
+            "function": f"PypeHarmony.Publish.{self_name}.getBackdropsByNode",
+            "args": node})["result"]
+
+    def get_dependencies(
+            self, node: str, dependencies: list = None) -> list:
+        """Get node dependencies.
+
+        This will return recursive dependency list of given node.
+
+        Args:
+            node (str): Path to the node.
+            dependencies (list, optional): existing dependency list.
+
+        Returns:
+            list: List of dependent nodes.
+
+        """
+        current_dependencies = harmony.send(
             {
-                dependencies.push(node.srcNode(target_node, i));
-            }
-            return dependencies;
-        }
-        func
-        """
-
-        current_dependencies = avalon.harmony.send(
-            {"function": func, "args": [node]}
+                "function": "PypeHarmony.getDependencies",
+                "args": node}
         )["result"]
 
         for dependency in current_dependencies:

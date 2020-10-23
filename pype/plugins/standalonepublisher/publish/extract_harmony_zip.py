@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+"""Extract Harmony scene from zip file."""
 import glob
 import os
 import shutil
@@ -12,7 +14,7 @@ import pype.api
 
 
 class ExtractHarmonyZip(pype.api.Extractor):
-    """Extract Harmony zip"""
+    """Extract Harmony zip."""
 
     # Pyblish settings
     label = "Extract Harmony zip"
@@ -34,11 +36,11 @@ class ExtractHarmonyZip(pype.api.Extractor):
     assetversion_status = "Ingested"
 
     def process(self, instance):
-        """The main pyblish process method for Extract Harmony Zip Extractor"""
+        """Plugin entry point."""
         context = instance.context
         self.session = context.data["ftrackSession"]
         asset_doc = context.data["assetEntity"]
-        asset_name = instance.data["asset"]
+        # asset_name = instance.data["asset"]
         subset_name = instance.data["subset"]
         instance_name = instance.data["name"]
         family = instance.data["family"]
@@ -62,7 +64,7 @@ class ExtractHarmonyZip(pype.api.Extractor):
         project_entity = self.session.query(query).one()
 
         # Get Task types and Statuses for creation if needed
-        self.task_types = self.get_all_task_types(project_entity)
+        self.task_types = self._get_all_task_types(project_entity)
         self.task_statuses = self.get_all_task_statuses(project_entity)
 
         # Get Statuses of AssetVersions
@@ -94,7 +96,7 @@ class ExtractHarmonyZip(pype.api.Extractor):
                 )
 
         # Find latest version
-        latest_version = self.find_last_version(subset_name, asset_doc)
+        latest_version = self._find_last_version(subset_name, asset_doc)
         version_number = 1
         if latest_version is not None:
             version_number += latest_version
@@ -198,8 +200,16 @@ class ExtractHarmonyZip(pype.api.Extractor):
             self.log.debug("Extracted Workfile to: {}".format(workfile_path))
 
     def extract_workfile(self, instance, staging_scene):
-        """Extract a valid workfile for this corresponding publish"""
+        """Extract a valid workfile for this corresponding publish.
 
+        Args:
+            instance (:class:`pyblish.api.Instance`): Instance data.
+            staging_scene (str): path of staging scene.
+
+        Returns:
+            str: Path to workdir.
+
+        """
         # Since the staging scene was renamed to "scene.xstage" for publish
         # rename the staging scene in the temp stagingdir
         staging_scene = os.path.join(os.path.dirname(staging_scene),
@@ -209,19 +219,20 @@ class ExtractHarmonyZip(pype.api.Extractor):
         anatomy = pype.api.Anatomy()
         project_entity = instance.context.data["projectEntity"]
 
-        data = {"root": api.registered_root(),
-                "project": {
-                    "name": project_entity["name"],
-                    "code": project_entity["data"].get("code", '')
-                },
-                "asset": instance.data["asset"],
-                "hierarchy": pype.api.get_hierarchy(instance.data["asset"]),
-                "family": instance.data["family"],
-                "task": instance.data.get("task"),
-                "subset": instance.data["subset"],
-                "version": 1,
-                "ext": "zip",
-                }
+        data = {
+            "root": api.registered_root(),
+            "project": {
+                "name": project_entity["name"],
+                "code": project_entity["data"].get("code", '')
+            },
+            "asset": instance.data["asset"],
+            "hierarchy": pype.api.get_hierarchy(instance.data["asset"]),
+            "family": instance.data["family"],
+            "task": instance.data.get("task"),
+            "subset": instance.data["subset"],
+            "version": 1,
+            "ext": "zip",
+        }
 
         # Get a valid work filename first with version 1
         file_template = anatomy.templates["work"]["file"]
@@ -264,16 +275,24 @@ class ExtractHarmonyZip(pype.api.Extractor):
 
         return work_path
 
-    def sanitize_prezipped_project(self, instance, zip_filepath, staging_dir):
-        """This method is just to fix when a zip contains a folder instead of
-        the project in the root of the zip file
+    def sanitize_prezipped_project(
+            self, instance, zip_filepath, staging_dir):
+        """Fix when a zip contains a folder.
+
+        Handle zip file root contains folder instead of the project.
+
+        Args:
+            instance (:class:`pyblish.api.Instance`): Instance data.
+            zip_filepath (str): Path to zip.
+            staging_dir (str): Path to staging directory.
+
         """
         zip = zipfile.ZipFile(zip_filepath)
         zip_contents = zipfile.ZipFile.namelist(zip)
 
         # Determine if any xstage file is in root of zip
         project_in_root = [pth for pth in zip_contents
-                           if not "/" in pth and pth.endswith(".xstage")]
+                           if "/" not in pth and pth.endswith(".xstage")]
 
         staging_scene_dir = os.path.join(staging_dir, "scene")
 
@@ -306,7 +325,8 @@ class ExtractHarmonyZip(pype.api.Extractor):
         # We have staged the scene already so return True
         return True
 
-    def find_last_version(self, subset_name, asset_doc):
+    def _find_last_version(self, subset_name, asset_doc):
+        """Find last version of subset."""
         subset_doc = io.find_one({
             "type": "subset",
             "name": subset_name,
@@ -327,7 +347,8 @@ class ExtractHarmonyZip(pype.api.Extractor):
                 return int(version_doc["name"])
         return None
 
-    def get_all_task_types(self, project):
+    def _get_all_task_types(self, project):
+        """Get all task types."""
         tasks = {}
         proj_template = project['project_schema']
         temp_task_types = proj_template['_task_type_schema']['types']
@@ -338,7 +359,8 @@ class ExtractHarmonyZip(pype.api.Extractor):
 
         return tasks
 
-    def get_all_task_statuses(self, project):
+    def _get_all_task_statuses(self, project):
+        """Get all statuses of tasks."""
         statuses = {}
         proj_template = project['project_schema']
         temp_task_statuses = proj_template.get_statuses("Task")
@@ -349,7 +371,8 @@ class ExtractHarmonyZip(pype.api.Extractor):
 
         return statuses
 
-    def get_all_assetversion_statuses(self, project):
+    def _get_all_assetversion_statuses(self, project):
+        """Get statuses of all asset versions."""
         statuses = {}
         proj_template = project['project_schema']
         temp_task_statuses = proj_template.get_statuses("AssetVersion")
@@ -360,7 +383,8 @@ class ExtractHarmonyZip(pype.api.Extractor):
 
         return statuses
 
-    def create_task(self, name, task_type, parent, task_status):
+    def _create_task(self, name, task_type, parent, task_status):
+        """Create task."""
         task_data = {
             'name': name,
             'parent': parent,

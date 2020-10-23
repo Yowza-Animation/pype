@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+"""Collect Harmony scenes in Standalone Publisher."""
 import copy
 import glob
 import os
@@ -7,7 +9,7 @@ import pyblish.api
 
 
 class CollectHarmonyScenes(pyblish.api.InstancePlugin):
-    """Collect Harmony xstage files"""
+    """Collect Harmony xstage files."""
 
     order = pyblish.api.CollectorOrder + 0.498
     label = "Collect Harmony Scene"
@@ -18,6 +20,7 @@ class CollectHarmonyScenes(pyblish.api.InstancePlugin):
     ignored_instance_data_keys = ("name", "label", "stagingDir", "version")
 
     def process(self, instance):
+        """Plugin entry point."""
         context = instance.context
         asset_data = instance.context.data["assetEntity"]
         asset_name = instance.data["asset"]

@@ -183,7 +183,7 @@ class CollectPlatesData(api.InstancePlugin):
                 "frameEnd": instance.data["sourceOut"] - instance.data["sourceIn"] + 1,
                 'step': 1,
                 'fps': instance.context.data["fps"],
-                'tags': ["review"],
+                'tags': ["preview"],
                 'name': "preview",
                 'ext': "mov",
             }

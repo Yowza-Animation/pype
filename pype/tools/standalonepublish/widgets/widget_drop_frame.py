@@ -275,7 +275,6 @@ class DropDataFrame(QtWidgets.QFrame):
 
         files = []
         files.append(remainder)
-
         actions = []
 
         data = {

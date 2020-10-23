@@ -1,7 +1,10 @@
+# -*- coding: utf-8 -*-
+"""Extract palette from Harmony."""
 import os
 import csv
 
 from PIL import Image, ImageDraw, ImageFont
+
 from avalon import harmony
 import pype.api
 import pype.hosts.harmony
@@ -15,28 +18,16 @@ class ExtractPalette(pype.api.Extractor):
     families = ["palette"]
 
     def process(self, instance):
-        func = """function func(args)
-        {
-            var palette_list = PaletteObjectManager.getScenePaletteList();
-            var palette = palette_list.getPaletteById(args[0]);
-            var palette_name = palette.getName()
-            return [palette_name, (palette.getPath() + "/" + palette.getName() + ".plt")];
-        }
-        func
-        """
-
+        """Plugin entry point."""
+        self_name = self.__class__.__name__
         result = harmony.send(
-            {"function": func, "args": [instance.data["id"]]}
-        )["result"]
+            {
+                "function": f"PypeHarmony.Publish.{self_name}",
+                "args": instance.data["id"]
+            })["result"]
+
         palette_name = result[0]
         palette_file = result[1]
-
-        representation = {
-            "name": "plt",
-            "ext": "plt",
-            "files": os.path.basename(palette_file),
-            "stagingDir": os.path.dirname(palette_file)
-        }
 
         tmp_thumb_path = os.path.join(os.path.dirname(palette_file),
                                       os.path.basename(palette_file)
@@ -56,6 +47,13 @@ class ExtractPalette(pype.api.Extractor):
             "tags": ["thumbnail"]
         }
 
+        representation = {
+            "name": "plt",
+            "ext": "plt",
+            "files": os.path.basename(palette_file),
+            "stagingDir": os.path.dirname(palette_file)
+        }
+
         instance.data["representations"] = [representation, thumbnail]
 
     def create_palette_thumbnail(self,
@@ -63,13 +61,27 @@ class ExtractPalette(pype.api.Extractor):
                                  palette_version,
                                  palette_path,
                                  dst_path):
+        """Create thumbnail for palette file.
+
+        Args:
+            palette_name (str): Name of palette.
+            palette_version (str): Version of palette.
+            palette_path (str): Path to palette file.
+            dst_path (str): Thumbnail path.
+
+        Returns:
+            str: Thumbnail path.
+
+        """
         colors = {}
 
         with open(palette_path, newline='') as plt:
             plt_parser = csv.reader(plt, delimiter=" ")
             for i, line in enumerate(plt_parser):
-                if i == 0: continue
-                while ("" in line): line.remove("")
+                if i == 0:
+                    continue
+                while ("" in line):
+                    line.remove("")
                 print(line)
                 color_name = line[1].strip('"')
                 colors[color_name] = {"type": line[0],
@@ -110,9 +122,10 @@ class ExtractPalette(pype.api.Extractor):
                     pixels[i, j] = (255, 255, 255)
 
         draw = ImageDraw.Draw(img)
+        # TODO: This needs to be font included with Pype because
+        # arial is not available on other platforms then Windows.
         title_font = ImageFont.truetype("arial.ttf", 28)
         label_font = ImageFont.truetype("arial.ttf", 20)
-
 
         draw.text((label_pad_name, 20),
                   "{} (v{})".format(palette_name, palette_version),
@@ -131,16 +144,16 @@ class ExtractPalette(pype.api.Extractor):
             #     half_y = (img_pad_top + swatch_pad_top + (i * swatch_h))/2
             #
             #     draw.rectangle((
-            #         swatch_pad_left,  # upper left x
-            #         img_pad_top + swatch_pad_top + (i * swatch_h),  # upper left y
-            #         swatch_pad_left + (swatch_w * 2),  # lower right x
-            #         half_y),  # lower right y
+            #         swatch_pad_left,  # upper LX
+            #         img_pad_top + swatch_pad_top + (i * swatch_h), # upper LY
+            #         swatch_pad_left + (swatch_w * 2),  # lower RX
+            #         half_y),  # lower RY
             #         fill=rgba[:-1], outline=(0, 0, 0), width=2)
             #     draw.rectangle((
-            #         swatch_pad_left,  # upper left x
-            #         half_y,  # upper left y
-            #         swatch_pad_left + (swatch_w * 2),  # lower right x
-            #         img_pad_top + swatch_h + (i * swatch_h)),  # lower right y
+            #         swatch_pad_left,  # upper LX
+            #         half_y,  # upper LY
+            #         swatch_pad_left + (swatch_w * 2),  # lower RX
+            #         img_pad_top + swatch_h + (i * swatch_h)),  # lower RY
             #         fill=rgba, outline=(0, 0, 0), width=2)
             # else:
 
@@ -151,12 +164,12 @@ class ExtractPalette(pype.api.Extractor):
                 img_pad_top + swatch_h + (i * swatch_h)),  # lower right y
                 fill=rgba, outline=(0, 0, 0), width=2)
 
-            draw.text((label_pad_name, img_pad_top + (i * swatch_h) + swatch_pad_top + (swatch_h / 4)),
+            draw.text((label_pad_name, img_pad_top + (i * swatch_h) + swatch_pad_top + (swatch_h / 4)),  # noqa: E501
                       name,
                       "black",
                       font=label_font)
 
-            draw.text((label_pad_rgb, img_pad_top + (i * swatch_h) + swatch_pad_top + (swatch_h / 4)),
+            draw.text((label_pad_rgb, img_pad_top + (i * swatch_h) + swatch_pad_top + (swatch_h / 4)),  # noqa: E501
                       str(rgba),
                       "black",
                       font=label_font)
