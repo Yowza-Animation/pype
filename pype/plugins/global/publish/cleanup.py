@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 """Cleanup leftover files from publish."""
 import os
-import re
 import shutil
-
 import pyblish.api
+import re
 
 
 class CleanUp(pyblish.api.InstancePlugin):
@@ -22,6 +21,7 @@ class CleanUp(pyblish.api.InstancePlugin):
 
     # Presets
     paterns = None  # list of regex paterns
+    remove_temp_renders = True
 
     def process(self, instance):
         """Plugin entry point."""
@@ -29,7 +29,7 @@ class CleanUp(pyblish.api.InstancePlugin):
         failed = []
         for result in instance.context.data["results"]:
             if (result["error"] is not None and result["instance"] is not None
-                    and result["instance"] not in failed):
+               and result["instance"] not in failed):
                 failed.append(result["instance"])
         assert instance not in failed, (
             "Result of '{}' instance were not success".format(
@@ -37,11 +37,12 @@ class CleanUp(pyblish.api.InstancePlugin):
             )
         )
 
-        self.log.info("Cleaning renders new...")
-        self.clean_renders(instance)
+        if self.remove_temp_renders:
+            self.log.info("Cleaning renders new...")
+            self.clean_renders(instance)
 
         if [ef for ef in self.exclude_families
-            if instance.data["family"] in ef]:
+                if instance.data["family"] in ef]:
             return
         import tempfile
 
@@ -62,10 +63,7 @@ class CleanUp(pyblish.api.InstancePlugin):
             return
 
         self.log.info("Removing staging directory {}".format(staging_dir))
-        try:
-            shutil.rmtree(staging_dir)
-        except Exception as err:
-            self.log.error(err)
+        shutil.rmtree(staging_dir)
 
     def clean_renders(self, instance):
         transfers = instance.data.get("transfers", list())
@@ -89,7 +87,11 @@ class CleanUp(pyblish.api.InstancePlugin):
             if os.path.normpath(src) != os.path.normpath(dest):
                 if instance_family == 'render' or 'render' in current_families:
                     self.log.info("Removing src: `{}`...".format(src))
-                    os.remove(src)
+                    try:
+                        os.remove(src)
+                    except PermissionError:
+                        self.log.warning("Insufficient permission to delete {}".format(src))
+                        continue
 
                     # add dir for cleanup
                     dirnames.append(os.path.dirname(src))

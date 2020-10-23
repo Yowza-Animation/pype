@@ -272,8 +272,10 @@ class DropDataFrame(QtWidgets.QFrame):
         file_base, file_ext = os.path.splitext(filename)
         repr_name = file_ext.replace('.', '')
         file_info = None
+
         files = []
         files.append(remainder)
+
         actions = []
 
         data = {
@@ -293,9 +295,10 @@ class DropDataFrame(QtWidgets.QFrame):
         args = [
             ffprobe_path,
             '-v', 'quiet',
-            '-print_format', 'json',
+            '-print_format json',
             '-show_format',
-            '-show_streams', filepath
+            '-show_streams',
+            '"{}"'.format(filepath)
         ]
         ffprobe_p = subprocess.Popen(
             ' '.join(args),

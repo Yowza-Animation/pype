@@ -18,9 +18,6 @@ class PhotoshopPrelaunch(pype.lib.PypeHook):
         self.signature = "( {} )".format(self.__class__.__name__)
 
     def execute(self, *args, env: dict = None) -> bool:
-        try:
-            import win32api
-        except:
-            output = pype.lib._subprocess(["pip", "install", "pywin32==227"])
-            self.log.info(output)
+        output = pype.lib._subprocess(["pip", "install", "pywin32==227"])
+        self.log.info(output)
         return True

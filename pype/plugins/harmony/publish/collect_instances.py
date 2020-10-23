@@ -1,4 +1,5 @@
 import json
+import os
 
 import pyblish.api
 from avalon import harmony
@@ -62,3 +63,31 @@ class CollectInstances(pyblish.api.ContextPlugin):
                     instance.data["name"], json.dumps(instance.data, indent=4)
                 )
             )
+
+        self.process_status(context)
+
+    def process_status(self, context):
+        family = "request"
+        task = "sendToRender"
+        sanitized_task_name = task[0].upper() + task[1:]
+        subset = "{}{}".format(family, sanitized_task_name)
+        # base_name = os.path.basename(context.data["currentFile"])
+        base_name = "sendToRender"
+
+        # Create instance
+        instance = context.create_instance(subset)
+        instance.data.update({
+            "subset": subset,
+            "label": base_name,
+            "name": base_name,
+            "family": family,
+            "families": ["request", "ftrack"],
+            "representations": [],
+            "asset": os.environ["AVALON_ASSET"],
+        })
+
+        self.log.info(
+            "Created instance:\n" + json.dumps(
+                instance.data, sort_keys=True, indent=4
+            )
+        )
