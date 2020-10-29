@@ -45,6 +45,10 @@ class ExtractTemplate(pype.api.Extractor):
         if instance[0] in dependencies:
             dependencies.remove(instance[0])
 
+        self.log.info(dependencies)
+        self.log.info(instance.data.get("staging_dir"))
+        self.log.info(staging_dir)
+
         # Export template.
         pype.hosts.harmony.export_template(
             unique_backdrops, dependencies, filepath
