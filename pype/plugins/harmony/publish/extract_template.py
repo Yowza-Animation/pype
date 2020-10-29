@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Extract template."""
 import os
 import shutil
 
@@ -13,10 +11,9 @@ class ExtractTemplate(pype.api.Extractor):
 
     label = "Extract Template"
     hosts = ["harmony"]
-    families = ["scene"]
+    families = ["harmony.template"]
 
     def process(self, instance):
-        """Plugin entry point."""
         staging_dir = self.staging_dir(instance)
         filepath = os.path.join(staging_dir, f"{instance.name}.tpl")
 
@@ -64,49 +61,60 @@ class ExtractTemplate(pype.api.Extractor):
             "files": f"{instance.name}.zip",
             "stagingDir": staging_dir
         }
+        instance.data["representations"] = [representation]
 
-        self.log.info(instance.data.get("representations"))
-        if instance.data.get("representations"):
-            instance.data["representations"].extend([representation])
-        else:
-            instance.data["representations"] = [representation]
-
-        instance.data["version_name"] = "{}_{}".format(
-            instance.data["subset"], os.environ["AVALON_TASK"])
-
-    def get_backdrops(self, node: str) -> list:
-        """Get backdrops for the node.
-
-        Args:
-            node (str): Node path.
-
-        Returns:
-            list: list of Backdrops.
-
-        """
-        self_name = self.__class__.__name__
-        return harmony.send({
-            "function": f"PypeHarmony.Publish.{self_name}.getBackdropsByNode",
-            "args": node})["result"]
-
-    def get_dependencies(
-            self, node: str, dependencies: list = None) -> list:
-        """Get node dependencies.
-
-        This will return recursive dependency list of given node.
-
-        Args:
-            node (str): Path to the node.
-            dependencies (list, optional): existing dependency list.
-
-        Returns:
-            list: List of dependent nodes.
-
-        """
-        current_dependencies = harmony.send(
+    def get_backdrops(self, node):
+        sig = harmony.signature()
+        func = """function %s(probe_node)
+        {
+            var backdrops = Backdrop.backdrops("Top");
+            var valid_backdrops = [];
+            for(var i=0; i<backdrops.length; i++)
             {
-                "function": "PypeHarmony.getDependencies",
-                "args": node}
+                var position = backdrops[i].position;
+
+                var x_valid = false;
+                var node_x = node.coordX(probe_node);
+                if (position.x < node_x && node_x < (position.x + position.w)){
+                    x_valid = true
+                };
+
+                var y_valid = false;
+                var node_y = node.coordY(probe_node);
+                if (position.y < node_y && node_y < (position.y + position.h)){
+                    y_valid = true
+                };
+
+                if (x_valid && y_valid){
+                    valid_backdrops.push(backdrops[i])
+                };
+            }
+            return valid_backdrops;
+        }
+        %s
+        """ % (sig, sig)
+        return harmony.send(
+            {"function": func, "args": [node]}
+        )["result"]
+
+    def get_dependencies(self, node, dependencies):
+        sig = harmony.signature()
+        func = """function %s(args)
+        {
+            var target_node = args[0];
+            var numInput = node.numberOfInputPorts(target_node);
+            var dependencies = [];
+            for (var i = 0 ; i < numInput; i++)
+            {
+                dependencies.push(node.srcNode(target_node, i));
+            }
+            return dependencies;
+        }
+        %s
+        """ % (sig, sig)
+
+        current_dependencies = harmony.send(
+            {"function": func, "args": [node]}
         )["result"]
 
         for dependency in current_dependencies:

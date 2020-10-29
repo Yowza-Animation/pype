@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Collect palettes from Harmony."""
 import os
 import json
 
@@ -15,24 +13,32 @@ class CollectPalettes(pyblish.api.ContextPlugin):
     hosts = ["harmony"]
 
     def process(self, context):
-        """Collector entry point."""
-        self_name = self.__class__.__name__
-        palettes = harmony.send(
+        sig = harmony.signature()
+        func = """function %s()
+        {
+            var palette_list = PaletteObjectManager.getScenePaletteList();
+
+            var palettes = {};
+            for(var i=0; i < palette_list.numPalettes; ++i)
             {
-                "function": f"PypeHarmony.Publish.{self_name}.getPalettes",
-            })["result"]
+                var palette = palette_list.getPaletteByIndex(i);
+                palettes[palette.getName()] = palette.id;
+            }
+
+            return palettes;
+        }
+        %s
+        """ % (sig, sig)
+        palettes = harmony.send({"function": func})["result"]
 
         for name, id in palettes.items():
             instance = context.create_instance(name)
             instance.data.update({
                 "id": id,
-                "family": "palette",
+                "family": "harmony.palette",
                 "asset": os.environ["AVALON_ASSET"],
-                "subset": "{}{}".format("palette", name)
+                "subset": "palette" + name
             })
-
-            instance.data["publish"] = False
-
             self.log.info(
                 "Created instance:\n" + json.dumps(
                     instance.data, sort_keys=True, indent=4

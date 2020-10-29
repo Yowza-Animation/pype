@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-"""Collect current workfile from Harmony."""
 import pyblish.api
 import os
 
@@ -12,12 +10,10 @@ class CollectWorkfile(pyblish.api.ContextPlugin):
     hosts = ["harmony"]
 
     def process(self, context):
-        """Plugin entry point."""
         family = "workfile"
         task = os.getenv("AVALON_TASK", None)
-        sanitized_task_name = task[0].upper() + task[1:]
+        subset = family + task.capitalize()
         basename = os.path.basename(context.data["currentFile"])
-        subset = "{}{}".format(family, sanitized_task_name)
 
         # Create instance
         instance = context.create_instance(subset)

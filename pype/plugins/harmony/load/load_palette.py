@@ -2,12 +2,13 @@ import os
 import shutil
 
 from avalon import api, harmony
+from avalon.vendor import Qt
 
 
 class ImportPaletteLoader(api.Loader):
     """Import palettes."""
 
-    families = ["palette"]
+    families = ["harmony.palette"]
     representations = ["plt"]
     label = "Import Palette"
 
@@ -40,14 +41,14 @@ class ImportPaletteLoader(api.Loader):
 
         harmony.save_scene()
 
+        # Dont allow instances with the same name.
+        message_box = Qt.QtWidgets.QMessageBox()
+        message_box.setIcon(Qt.QtWidgets.QMessageBox.Warning)
         msg = "Updated {}.".format(subset_name)
         msg += " You need to reload the scene to see the changes."
+        message_box.setText(msg)
+        message_box.exec_()
 
-        harmony.send(
-            {
-                "function": "PypeHarmony.message",
-                "args": msg
-            })
         return name
 
     def remove(self, container):
