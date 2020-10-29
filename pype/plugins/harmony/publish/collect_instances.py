@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Collect instances in Harmony."""
+import os
 import json
 
 import pyblish.api
