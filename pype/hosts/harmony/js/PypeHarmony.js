@@ -187,12 +187,11 @@ PypeHarmony.color = function(rgba) {
  * @return  {array}   List of dependent nodes.
  */
 PypeHarmony.getDependencies = function(node) {
-    // var target_node = node;
-    // var numInput = node.numberOfInputPorts(target_node);
-    // var dependencies = [];
-    // for (var i = 0 ; i < numInput; i++) {
-    //     dependencies.push(node.srcNode(target_node, i));
-    // }
-    // return dependencies;
-    return $.scene.nodes
+    var target_node = node;
+    var numInput = node.numberOfInputPorts(target_node);
+    var dependencies = [];
+    for (var i = 0 ; i < numInput; i++) {
+        dependencies.push(node.srcNode(target_node, i));
+    }
+    return dependencies;
 };

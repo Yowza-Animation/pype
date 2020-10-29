@@ -51,7 +51,7 @@ class ExtractTemplate(pype.api.Extractor):
 
         # Export template.
         pype.hosts.harmony.export_template(
-            unique_backdrops, dependencies, filepath
+            unique_backdrops, all_nodes, filepath#ldependencies, filepath
         )
 
         # Prep representation.
