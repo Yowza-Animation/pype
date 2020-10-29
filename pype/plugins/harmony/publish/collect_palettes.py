@@ -30,6 +30,9 @@ class CollectPalettes(pyblish.api.ContextPlugin):
                 "asset": os.environ["AVALON_ASSET"],
                 "subset": "{}{}".format("palette", name)
             })
+
+            instance.data["publish"] = False
+
             self.log.info(
                 "Created instance:\n" + json.dumps(
                     instance.data, sort_keys=True, indent=4
