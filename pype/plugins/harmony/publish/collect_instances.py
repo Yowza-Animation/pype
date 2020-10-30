@@ -71,7 +71,7 @@ class CollectInstances(pyblish.api.ContextPlugin):
                 )
             )
 
-        self.process_status(context)
+        # self.process_status(context)
 
     def process_status(self, context):
         family = "request"
