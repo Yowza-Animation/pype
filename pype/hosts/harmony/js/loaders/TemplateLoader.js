@@ -41,15 +41,33 @@ TemplateLoader.prototype.loadContainer = function(args) {
     var groupId = args[3];
 
     // Get the current group
-    var nodeViewWidget = $.app.getWidgetByName('Node View');
-    if (!nodeViewWidget) {
-        $.alert('You must have a Node View open!', 'No Node View!', 'OK!');
+    // Below does not work when the Node View is docked
+    // var nodeViewWidget = $.app.getWidgetByName('Node View');
+    // if (!nodeViewWidget) {
+    //     $.alert('You must have a Node View open!', 'No Node View!', 'OK!');
+    //     return;
+    // }
+    //
+    // nodeViewWidget.setFocus();
+
+    nodeView = '';
+    for (i = 0; i < 200; i++) {
+        nodeView = 'View' + (i);
+        if (view.type(nodeView) == 'Node View') {
+            break;
+        }
+    }
+
+    if (!nodeView) {
+        $.alert('You must have a Node View open!',
+                'No Node View is currently open!\n'+
+                'Open a Node View and Try Again.',
+                'OK!');
         return;
     }
 
-    nodeViewWidget.setFocus();
     var currentGroup;
-    var nodeView = view.currentView();
+    // var nodeView = view.currentView();
     if (!nodeView) {
         currentGroup = doc.root;
     } else {
