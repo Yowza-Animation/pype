@@ -80,19 +80,19 @@ TemplateLoader.prototype.loadContainer = function(args) {
         containerGroupName = assetName + '_' + (num++) + '_' + subset;
     } while (currentGroup.getNodeByName(containerGroupName) != null);
 
-    // import the template
-    var tplNodes = currentGroup.importTemplate(templatePath);
-    log(tplNodes);
-    
     // Create the container group
-    var groupNode = currentGroup.addGroup(
+    var containerGroup = currentGroup.addGroup(
         containerGroupName, false, false, tplNodes);
 
-    // Add uuid to attribute of the container group
-    node.createDynamicAttr(groupNode, 'STRING', 'uuid', 'uuid', false);
-    node.setTextAttr(groupNode, 'uuid', 1.0, groupId);
+    // import the template
+    var tplNodes = containerGroup.importTemplate(templatePath);
+    log(tplNodes);
 
-    return String(groupNode.path);
+    // Add uuid to attribute of the container group
+    node.createDynamicAttr(containerGroup, 'STRING', 'uuid', 'uuid', false);
+    node.setTextAttr(containerGroup, 'uuid', 1.0, groupId);
+
+    return String(containerGroup.path);
 };
 
 
