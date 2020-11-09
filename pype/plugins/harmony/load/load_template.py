@@ -112,7 +112,6 @@ class TemplateLoader(api.Loader):
                 }
             )
 
-
         harmony.imprint(
             node, {"representation": str(representation["_id"])}
         )
