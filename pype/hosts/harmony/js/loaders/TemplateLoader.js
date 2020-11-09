@@ -67,7 +67,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
     }
 
     var currentGroup;
-    // var nodeView = view.currentView();
     if (!nodeView) {
         currentGroup = doc.root;
     } else {
@@ -83,7 +82,8 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
     // import the template
     var tplNodes = currentGroup.importTemplate(templatePath);
-    MessageLog.trace(tplNodes);
+    log(tplNodes);
+    
     // Create the container group
     var groupNode = currentGroup.addGroup(
         containerGroupName, false, false, tplNodes);
@@ -92,7 +92,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
     node.createDynamicAttr(groupNode, 'STRING', 'uuid', 'uuid', false);
     node.setTextAttr(groupNode, 'uuid', 1.0, groupId);
 
-    return String(groupNode);
+    return String(groupNode.path);
 };
 
 
