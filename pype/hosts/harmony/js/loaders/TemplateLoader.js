@@ -82,7 +82,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
     // import the template
     var tplNodes = currentGroup.importTemplate(templatePath);
-    log(tplNodes);
 
     // Create the container group
 
