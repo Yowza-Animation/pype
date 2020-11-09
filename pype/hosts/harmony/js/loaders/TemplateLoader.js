@@ -95,7 +95,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
     Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
 
     var containerGroup = doc.$node(doc.selectedNodes[0]);
-    containerGroup.rename(containerGroupName);
+    containerGroup.name = containerGroupName;
 
     // Add uuid to attribute of the container group
     node.createDynamicAttr(containerGroup, 'STRING', 'uuid', 'uuid', false);
