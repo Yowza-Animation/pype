@@ -80,13 +80,23 @@ TemplateLoader.prototype.loadContainer = function(args) {
         containerGroupName = assetName + '_' + (num++) + '_' + subset;
     } while (currentGroup.getNodeByName(containerGroupName) != null);
 
-    // Create the container group
-    var containerGroup = currentGroup.addGroup(
-        containerGroupName, false, false, tplNodes);
-
     // import the template
     var tplNodes = containerGroup.importTemplate(templatePath);
     log(tplNodes);
+
+    // Create the container group
+
+    //@TODO: instead of using the Action to create the group,
+    // this should be done manually since Harmony can be unreliable when it
+    // comes to always giving the selection of nodes after an Action
+
+    // var containerGroup = currentGroup.addGroup(
+    //     containerGroupName, false, false, tplNodes);
+
+    Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
+
+    containerGroup = doc.$node(doc.selectedNodes[0]);
+    containerGroup.rename(containerGroupName);
 
     // Add uuid to attribute of the container group
     node.createDynamicAttr(containerGroup, 'STRING', 'uuid', 'uuid', false);
