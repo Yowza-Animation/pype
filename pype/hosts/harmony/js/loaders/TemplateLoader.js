@@ -81,7 +81,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
     } while (currentGroup.getNodeByName(containerGroupName) != null);
 
     // import the template
-    var tplNodes = containerGroup.importTemplate(templatePath);
+    var tplNodes = currentGroup.importTemplate(templatePath);
     log(tplNodes);
 
     // Create the container group
@@ -95,7 +95,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
     Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
 
-    containerGroup = doc.$node(doc.selectedNodes[0]);
+    var containerGroup = doc.$node(doc.selectedNodes[0]);
     containerGroup.rename(containerGroupName);
 
     // Add uuid to attribute of the container group
