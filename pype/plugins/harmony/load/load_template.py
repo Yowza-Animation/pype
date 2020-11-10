@@ -57,6 +57,7 @@ class TemplateLoader(api.Loader):
         # Cleanup the temp directory
         shutil.rmtree(temp_dir)
 
+
         # We must validate the group_node
         return harmony.containerise(
             name,
@@ -108,7 +109,7 @@ class TemplateLoader(api.Loader):
                 {
                     "function": f"PypeHarmony.Loaders.{self_name}."
                                 "replaceNode",
-                    "args": [node, updated_container, True, True]
+                    "args": [node, updated_container, True, False]
                 }
             )
 

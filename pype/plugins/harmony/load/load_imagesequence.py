@@ -18,6 +18,7 @@ class ImageSequenceLoader(api.Loader):
 
     families = ["shot", "render", "image", "plate", "reference"]
     representations = ["jpeg", "png", "jpg"]
+    label = "Load Image Sequence"
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
