@@ -19,7 +19,7 @@ class TemplateLoader(api.Loader):
 
     """
 
-    families = ["scene", "workfile"]
+    families = ["scene"]
     representations = ["*"]
     label = "Load Template"
     icon = "gift"
