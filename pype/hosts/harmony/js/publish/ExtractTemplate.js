@@ -24,6 +24,9 @@ var ExtractTemplate = function() {};
  * @param   {string} probeNode Node path to probe for backdrops.
  * @return  {array} list of backdrops.
  */
+
+// @TODO: This method assumes that all publishes occur from Top group..
+// Instead it should work from the group the container node is in!
 ExtractTemplate.prototype.getBackdropsByNode = function(probeNode) {
     var backdrops = Backdrop.backdrops('Top');
     var valid_backdrops = [];

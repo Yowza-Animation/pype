@@ -104,15 +104,11 @@ PypeHarmony.setColor = function(nodes, rgba) {
  *
  */
 PypeHarmony.exportTemplate = function(args) {
-    var tempNode = node.add('Top', 'temp_note', 'NOTE', 0, 0, 0);
-    var templateGroup = node.createGroup(tempNode, 'temp_group');
-    node.deleteNode( templateGroup + '/temp_note' );
 
     selection.clearSelection();
     for (var f = 0; f < args[1].length; f++) {
         selection.addNodeToSelection(args[1][f]);
     }
-
     Action.perform('copy()', 'Node View');
 
     selection.clearSelection();
@@ -134,6 +130,16 @@ PypeHarmony.exportTemplate = function(args) {
     Action.perform('onActionUpToParent()', 'Node View');
     node.deleteNode(templateGroup, true, true);
 };
+
+    // var doc = $.scene;
+    // var backdrops = args[0];
+    // var nodes = args[1];
+    // var filename = args[2];
+    // var folder = args[3];
+    //
+    // var selection = nodes.concat(backdrops);
+    // doc.selectedNodes = selection;
+
 
 
 /**
