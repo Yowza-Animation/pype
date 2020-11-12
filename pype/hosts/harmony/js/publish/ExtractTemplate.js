@@ -62,6 +62,11 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
 
         Action.perform("selectAll()", "Node View");
         doc.selectedNodes = templateGroup.nodes
+        MessageLog.trace("****************************************************")
+        MessageLog.trace(filename)
+        MessageLog.trace(folder)
+        MessageLog.trace(doc.selectedNodes)
+        MessageLog.trace("****************************************************")
         copyPaste.createTemplateFromSelection(filename, folder);
         // Unfocus the group in Node view, delete all nodes and backdrops
         // created during the process.
