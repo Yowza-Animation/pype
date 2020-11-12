@@ -29,7 +29,11 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     var currentGroup = _refNode.group
     var templateGroup = currentGroup.addGroup("temp_group", false, false)
 
+    log(args)
+    log(_nodes)
+    log(backdrops)
     doc.selectedNodes = _nodes;
+    log(doc.selectedNodes)
     Action.perform("copy()", "Node View");
     doc.selectedNodes = [templateGroup.path];
     Action.perform("onActionEnterGroup()", "Node View");
@@ -42,7 +46,9 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     var deltaX = _refNode.x - _copiedRefNode.x;
     var deltaY = _refNode.y - _copiedRefNode.y;
 
-    // Recreate backdrops in group.
+    // Recreate backdrops in group...
+    // @TODO: eventually this should be in callback which does this in a batch
+    //  subprocess to the saved tpl in the temp dir.
     for (var i = 0 ; i < backdrops.length; i++)
     {
         var backdropData = backdrops[i]
@@ -55,14 +61,14 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         Backdrop.addBackdrop(templateGroup, newData);
     }
 
-    // Action.perform( "selectAll()", "Node View" );
+    Action.perform( "selectAll()", "Node View" );
     doc.selectedNodes = templateGroup.nodes
     copyPaste.createTemplateFromSelection(filename, folder);
-
-    // Unfocus the group in Node view, delete all nodes and backdrops
-    // created during the process.
-    Action.perform("onActionUpToParent()", "Node View");
-    node.deleteNode(templateGroup, true, true);
+    //
+    // // Unfocus the group in Node view, delete all nodes and backdrops
+    // // created during the process.
+    // Action.perform("onActionUpToParent()", "Node View");
+    // node.deleteNode(templateGroup, true, true);
 
     $.endUndo();
 

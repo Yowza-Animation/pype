@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Extract template."""
 import os
+
+import pype.hosts.harmony
 import shutil
 
 import pype.api
@@ -25,15 +27,21 @@ class ExtractTemplate(pype.api.Extractor):
         dependencies = []
         self.get_dependencies(instance[0], dependencies)
 
+        self.log.info("dependencies: {0}".format(dependencies))
+
         # Get backdrops.
         backdrops = {}
         for dependency in dependencies:
             for backdrop in self.get_backdrops(dependency):
                 backdrops[backdrop["title"]["text"]] = backdrop
+
         unique_backdrops = [backdrops[x] for x in set(backdrops.keys())]
 
         # Get non-connected nodes within backdrops.
-        all_nodes = instance.context.data.get("allNodes")
+        all_nodes = instance.context.data.get("allNodes");
+
+        self.log.info("all_nodes: {0}".format(all_nodes))
+
         for node in [x for x in all_nodes if x not in dependencies]:
             within_unique_backdrops = bool(
                 [x for x in self.get_backdrops(node) if x in unique_backdrops]
@@ -41,13 +49,13 @@ class ExtractTemplate(pype.api.Extractor):
             if within_unique_backdrops:
                 dependencies.append(node)
 
+        self.log.info("dependencies: {0}".format(dependencies))
+
+
+
         # Make sure we dont export the instance node.
         if instance[0] in dependencies:
             dependencies.remove(instance[0])
-
-        self.log.info(dependencies)
-        self.log.info(instance.data.get("staging_dir"))
-        self.log.info(staging_dir)
 
         self_name = self.__class__.__name__
 
