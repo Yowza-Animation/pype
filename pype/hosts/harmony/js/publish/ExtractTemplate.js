@@ -55,7 +55,8 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         Backdrop.addBackdrop(templateGroup, newData);
     }
 
-    Action.perform( "selectAll()", "Node View" );
+    // Action.perform( "selectAll()", "Node View" );
+    doc.selectedNodes = templateGroup.nodes
     copyPaste.createTemplateFromSelection(filename, folder);
 
     // Unfocus the group in Node view, delete all nodes and backdrops
