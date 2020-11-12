@@ -30,7 +30,7 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         var folder = args[3];
         var _refNode = doc.$node(_nodes[0])
         var currentGroup = _refNode.group
-        const templateGroup = currentGroup.addGroup("temp_group", false, false)
+        templateGroup = currentGroup.addGroup("temp_group", false, false)
 
         doc.selectedNodes = _nodes;
 
@@ -52,7 +52,7 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         for (var i = 0; i < backdrops.length; i++) {
             var backdropData = backdrops[i]
             var newData = JSON.parse(JSON.stringify(backdropData));
-            MessageLog.trace(backdropData);
+            // MessageLog.trace(backdropData);
 
             // Now fix the backdrop pos with the delta offsets
             newData["position"]["x"] = backdropData["position"]["x"] + deltaX;
