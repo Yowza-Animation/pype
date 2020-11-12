@@ -35,7 +35,7 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     doc.selectedNodes = _nodes;
     log(doc.selectedNodes)
     Action.perform("copy()", "Node View");
-    doc.selectedNodes = [templateGroup.path];
+    doc.selectedNodes = [templateGroup];
     Action.perform("onActionEnterGroup()", "Node View");
     Action.perform("paste()", "Node View");
 
