@@ -189,15 +189,11 @@ PypeHarmony.color = function(rgba) {
 /**
  * get all dependencies for given node.
  * @function
- * @param   {string}  node node path.
+ * @param   {string}  _node node path.
  * @return  {array}   List of dependent nodes.
  */
-PypeHarmony.getDependencies = function(node) {
-    var target_node = node;
-    var numInput = node.numberOfInputPorts(target_node);
-    var dependencies = [];
-    for (var i = 0 ; i < numInput; i++) {
-        dependencies.push(node.srcNode(target_node, i));
-    }
-    return dependencies;
+PypeHarmony.getDependencies = function(_node) {
+    var doc = $.scene;
+    _node = doc.$node(_node);
+    return _node.inNodes.map(function(x){ return x.path })
 };
