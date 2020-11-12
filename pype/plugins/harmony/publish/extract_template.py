@@ -49,10 +49,11 @@ class ExtractTemplate(pype.api.Extractor):
         self.log.info(instance.data.get("staging_dir"))
         self.log.info(staging_dir)
 
-        # Export template.
-        pype.hosts.harmony.export_template(
-            unique_backdrops, dependencies, filepath
-        )
+        self_name = self.__class__.__name__
+
+        harmony.send({
+            "function": f"PypeHarmony.Publish.{self_name}.exportTemplate",
+            "args": [unique_backdrops, dependencies, filepath]})["result"]
 
         # Prep representation.
         os.chdir(staging_dir)
