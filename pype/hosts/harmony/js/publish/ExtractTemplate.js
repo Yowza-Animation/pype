@@ -27,13 +27,10 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     var folder = args[3];
     var _refNode = doc.$node(_nodes[0])
     var currentGroup = _refNode.group
-    var templateGroup = currentGroup.addGroup("temp_group", false, false)
+    const templateGroup = currentGroup.addGroup("temp_group", false, false)
 
-    log(args)
-    log(_nodes)
-    log(backdrops)
     doc.selectedNodes = _nodes;
-    log(doc.selectedNodes)
+
     Action.perform("copy()", "Node View");
     doc.selectedNodes = [templateGroup];
     Action.perform("onActionEnterGroup()", "Node View");
@@ -64,11 +61,10 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     Action.perform( "selectAll()", "Node View" );
     doc.selectedNodes = templateGroup.nodes
     copyPaste.createTemplateFromSelection(filename, folder);
-    //
-    // // Unfocus the group in Node view, delete all nodes and backdrops
-    // // created during the process.
-    // Action.perform("onActionUpToParent()", "Node View");
-    // node.deleteNode(templateGroup, true, true);
+    // Unfocus the group in Node view, delete all nodes and backdrops
+    // created during the process.
+    Action.perform("onActionUpToParent()", "Node View");
+    node.deleteNode(templateGroup, true, true);
 
     $.endUndo();
 
