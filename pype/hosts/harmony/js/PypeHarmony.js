@@ -109,6 +109,7 @@ PypeHarmony.exportTemplate = function(args) {
     for (var f = 0; f < args[1].length; f++) {
         selection.addNodeToSelection(args[1][f]);
     }
+
     Action.perform('copy()', 'Node View');
 
     selection.clearSelection();

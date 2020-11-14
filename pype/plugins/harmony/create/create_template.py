@@ -6,8 +6,7 @@ class CreateTemplate(harmony.Creator):
 
     name = "templateDefault"
     label = "Template"
-    family = "scene"
-    defaults = ['main']
+    family = "harmony.template"
 
     def __init__(self, *args, **kwargs):
         super(CreateTemplate, self).__init__(*args, **kwargs)

@@ -15,14 +15,14 @@ class ExtractPalette(pype.api.Extractor):
 
     label = "Extract Palette"
     hosts = ["harmony"]
-    families = ["palette"]
+    families = ["harmony.palette"]
 
     def process(self, instance):
         """Plugin entry point."""
         self_name = self.__class__.__name__
         result = harmony.send(
             {
-                "function": f"PypeHarmony.Publish.{self_name}",
+                "function": f"PypeHarmony.Publish.{self_name}.getPalette",
                 "args": instance.data["id"]
             })["result"]
 
@@ -38,7 +38,7 @@ class ExtractPalette(pype.api.Extractor):
                                       os.path.basename(palette_file)
                                       .split(".plt")[0] + "_swatches.png"
                                       )
-        self.log.info(f"Temporary thumbnail path {tmp_thumb_path}")
+        self.log.info(f"Temporary humbnail path {tmp_thumb_path}")
 
         palette_version = str(instance.data.get("version")).zfill(3)
 

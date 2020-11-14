@@ -87,11 +87,12 @@ class IntegrateAssetNew(pyblish.api.InstancePlugin):
                 "fbx",
                 "textures",
                 "action",
-                "palette",
+                "harmony.template",
+                "harmony.palette",
                 "editorial",
                 "background"
                 ]
-    exclude_families = ["clip", "paired_media", "temp"]
+    exclude_families = ["clip"]
     db_representation_context_keys = [
         "project", "asset", "task", "subset", "version", "representation",
         "family", "hierarchy", "task", "username"
@@ -106,7 +107,8 @@ class IntegrateAssetNew(pyblish.api.InstancePlugin):
 
     def process(self, instance):
         self.integrated_file_sizes = {}
-        if instance.data["family"] in self.exclude_families:
+        if [ef for ef in self.exclude_families
+                if instance.data["family"] in ef]:
             return
 
         try:
@@ -611,14 +613,14 @@ class IntegrateAssetNew(pyblish.api.InstancePlugin):
                 self.log.critical("An unexpected error occurred.")
                 six.reraise(*sys.exc_info())
 
-        # copy file with speedcopy and check if size of files are symmetrical
+        # copy file with speedcopy and check if size of files are simetrical
         while True:
-            import shutil
-            try:
+            if not shutil._samefile(src, dst):
                 copyfile(src, dst)
-            except shutil.SameFileError:
-                self.log.critical("files are the same {} to {}".format(src,
-                                                                       dst))
+            else:
+                self.log.critical(
+                    "files are the same {} to {}".format(src, dst)
+                )
                 os.remove(dst)
                 try:
                     shutil.copyfile(src, dst)

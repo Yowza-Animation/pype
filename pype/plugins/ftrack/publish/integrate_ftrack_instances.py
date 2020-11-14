@@ -32,9 +32,7 @@ class IntegrateFtrackInstance(pyblish.api.InstancePlugin):
                       'workfile': 'scene',
                       'animation': 'cache',
                       'image': 'img',
-                      'reference': 'reference',
-                      "palette": "palette",
-                      "scene": "scene",
+                      'reference': 'reference'
                       }
 
     def process(self, instance):
@@ -137,14 +135,14 @@ class IntegrateFtrackInstance(pyblish.api.InstancePlugin):
                     "short": asset_type,
                 },
                 "asset_data": {
-                    "name": instance.data.get("version_name") or instance.data["subset"],
+                    "name": instance.data["subset"],
                 },
                 "assetversion_data": {
                     "version": version_number,
                     "comment": instance.context.data.get("comment", "")
                 },
                 "component_data": component_data,
-                "component_path": comp.get('published_path'),
+                "component_path": comp['published_path'],
                 'component_location': location,
                 "component_overwrite": False,
                 "thumbnail": comp['thumbnail']
@@ -182,13 +180,13 @@ class IntegrateFtrackInstance(pyblish.api.InstancePlugin):
                         "short": asset_type,
                     },
                     "asset_data": {
-                        "name": instance.data.get("version_name") or instance.data["subset"],
+                        "name": instance.data["subset"],
                     },
                     "assetversion_data": {
                         "version": version_number,
                     },
                     "component_data": component_data_src,
-                    "component_path": comp.get('published_path'),
+                    "component_path": comp['published_path'],
                     'component_location': unmanaged_loc,
                     "component_overwrite": False,
                     "thumbnail": False
