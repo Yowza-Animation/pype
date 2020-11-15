@@ -17,15 +17,31 @@ if (typeof PypeHarmony !== 'undefined') {
  */
 var CollectPalettes = function() {};
 
-CollectPalettes.prototype.getPalettes = function() {
-    var palette_list = PaletteObjectManager.getScenePaletteList();
+CollectPalettes.prototype.getPalettes = function(nodes) {
 
+    // var palette_list = PaletteObjectManager.getScenePaletteList();
+    //
+    // var palettes = {};
+    // for(var i=0; i < palette_list.numPalettes; ++i) {
+    //     var palette = palette_list.getPaletteByIndex(i);
+    //     palettes[palette.getName()] = palette.id;
+    // }
+
+    // Only collect palettes which are in use by a drawing.
+    var doc = $.scene;
     var palettes = {};
-    for(var i=0; i < palette_list.numPalettes; ++i) {
-        var palette = palette_list.getPaletteByIndex(i);
-        palettes[palette.getName()] = palette.id;
-    }
+    var drawings = new $.oList(
+        doc.root.subNodes(true)).filterByProperty("type", "READ")
 
+    for (i in drawings){
+        var d = drawings[i]
+        var used_palettes = d.getUsedPalettes()
+        for (p in used_palettes){
+            var palette = used_palettes[p]
+            palettes[palette.name] = palette.id;
+        }
+
+    }
     return palettes;
 };
 

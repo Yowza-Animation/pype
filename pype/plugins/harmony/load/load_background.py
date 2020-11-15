@@ -231,6 +231,7 @@ class BackgroundLoader(api.Loader):
     """
     families = ["background"]
     representations = ["json"]
+    label = "Load as Background Image"
 
     def load(self, context, name=None, namespace=None, data=None):
 

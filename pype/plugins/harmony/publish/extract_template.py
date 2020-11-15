@@ -20,7 +20,7 @@ class ExtractTemplate(pype.api.Extractor):
     def process(self, instance):
         """Plugin entry point."""
         staging_dir = self.staging_dir(instance)
-        filepath = os.path.join(staging_dir, f"{instance.name}.tpl")
+        tpl_name = f"{instance.name}.tpl"
 
         self.log.info(f"Outputting template to {staging_dir}")
 
@@ -62,7 +62,7 @@ class ExtractTemplate(pype.api.Extractor):
 
         export_result = harmony.send({
             "function": f"PypeHarmony.Publish.{self_name}.exportTemplate",
-            "args": [unique_backdrops, dependencies, filepath]})["result"]
+            "args": [unique_backdrops, dependencies, staging_dir, tpl_name]})["result"]
 
         # Prep representation.
         os.chdir(staging_dir)

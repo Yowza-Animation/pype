@@ -19,7 +19,7 @@ class TemplateLoader(api.Loader):
 
     """
 
-    families = ["template", "workfile"]
+    families = ["scene"]
     representations = ["*"]
     label = "Load Template"
     icon = "gift"
@@ -57,6 +57,7 @@ class TemplateLoader(api.Loader):
         # Cleanup the temp directory
         shutil.rmtree(temp_dir)
 
+
         # We must validate the group_node
         return harmony.containerise(
             name,
@@ -74,11 +75,12 @@ class TemplateLoader(api.Loader):
             representation (dict): Representation data.
 
         """
+
+        update_and_replace = False
         node_name = container["name"]
         node = harmony.find_node_by_name(node_name, "GROUP")
         self_name = self.__class__.__name__
 
-        update_and_replace = False
         if pype.lib.is_latest(representation):
             self._set_green(node)
         else:
@@ -92,19 +94,24 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
+        updated_container = self.load(
+            container["context"], container["name"],
+            None, container["data"])["name"]
+
+        print("*"*80)
+        print(node)
+        print(updated_container)
+        print("*" * 80)
+
         if update_and_replace:
             # FIXME: This won't work, need to implement it.
             harmony.send(
                 {
                     "function": f"PypeHarmony.Loaders.{self_name}."
                                 "replaceNode",
-                    "args": []
+                    "args": [node, updated_container, True, False]
                 }
             )
-        else:
-            self.load(
-                container["context"], container["name"],
-                None, container["data"])
 
         harmony.imprint(
             node, {"representation": str(representation["_id"])}

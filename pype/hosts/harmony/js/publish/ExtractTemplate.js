@@ -23,11 +23,10 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
     try {
         var doc = $.scene;
         var backdrops = args[0];
-        var _nodes = args[1].map(function (x) {
-            return doc.$node(x)
-        });
-        var filename = args[2];
-        var folder = args[3];
+        var _nodes = args[1].map(function (x) { return doc.$node(x) });
+        var tpl_path = args[2];
+        var tpl_name = args[2];
+
         var _refNode = doc.$node(_nodes[0])
         var currentGroup = _refNode.group
         templateGroup = currentGroup.addGroup("temp_group", false, false)
@@ -51,23 +50,23 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         //  subprocess to the saved tpl in the temp dir.
         for (var i = 0; i < backdrops.length; i++) {
             var backdropData = backdrops[i]
-            var newData = JSON.parse(JSON.stringify(backdropData));
+            // var newData = JSON.parse(JSON.stringify(backdropData));
             // MessageLog.trace(backdropData);
 
             // Now fix the backdrop pos with the delta offsets
-            newData["position"]["x"] = backdropData["position"]["x"] + deltaX;
-            newData["position"]["y"] = backdropData["position"]["y"] + deltaY;
-            Backdrop.addBackdrop(templateGroup, newData);
+            backdropData["position"]["x"] = backdropData["position"]["x"] + deltaX;
+            backdropData["position"]["y"] = backdropData["position"]["y"] + deltaY;
+            Backdrop.addBackdrop(templateGroup, backdropData);
         }
 
         Action.perform("selectAll()", "Node View");
         doc.selectedNodes = templateGroup.nodes
         MessageLog.trace("****************************************************")
-        MessageLog.trace(filename)
-        MessageLog.trace(folder)
+        MessageLog.trace(tpl_name)
+        MessageLog.trace(tpl_path)
         MessageLog.trace(doc.selectedNodes)
         MessageLog.trace("****************************************************")
-        copyPaste.createTemplateFromSelection(filename, folder);
+        copyPaste.createTemplateFromSelection(tpl_name, tpl_path);
         // Unfocus the group in Node view, delete all nodes and backdrops
         // created during the process.
         Action.perform("onActionUpToParent()", "Node View");
