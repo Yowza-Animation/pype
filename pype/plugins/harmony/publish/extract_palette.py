@@ -38,7 +38,7 @@ class ExtractPalette(pype.api.Extractor):
                                       os.path.basename(palette_file)
                                       .split(".plt")[0] + "_swatches.png"
                                       )
-        self.log.info(f"Temporary humbnail path {tmp_thumb_path}")
+        self.log.info(f"Temporary thumbnail path {tmp_thumb_path}")
 
         palette_version = str(instance.data.get("version")).zfill(3)
 
@@ -64,8 +64,6 @@ class ExtractPalette(pype.api.Extractor):
                 "tags": ["thumbnail"]
             }
 
-            instance.data["representations"].append(thumbnail)
-
         representation = {
             "name": "plt",
             "ext": "plt",
@@ -73,7 +71,7 @@ class ExtractPalette(pype.api.Extractor):
             "stagingDir": os.path.dirname(palette_file)
         }
 
-        instance.data["representations"].append(representation)
+        instance.data["representations"] = [representation, thumbnail]
 
     def create_palette_thumbnail(self,
                                  palette_name,

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Collect instances in Harmony."""
+import os
 import json
 
 import pyblish.api
@@ -20,8 +21,8 @@ class CollectInstances(pyblish.api.ContextPlugin):
     order = pyblish.api.CollectorOrder
     hosts = ["harmony"]
     families_mapping = {
-        "render": ["imagesequence", "review", "ftrack"],
-        "harmony.template": [],
+        "render": ["imagesequence", "review"],
+        "scene": ["scene", "ftrack"],
         "palette": ["palette", "ftrack"]
     }
 
