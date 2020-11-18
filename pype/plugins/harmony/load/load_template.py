@@ -97,12 +97,11 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
-
         updated_container = self.load(context,
                                       container["name"],
                                       container.get("namespace"),
                                       container.get("data")
-                                      )["name"]
+                                      )
 
         print("*"*80)
         print(node)
