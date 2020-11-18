@@ -132,17 +132,6 @@ PypeHarmony.exportTemplate = function(args) {
     node.deleteNode(templateGroup, true, true);
 };
 
-    // var doc = $.scene;
-    // var backdrops = args[0];
-    // var nodes = args[1];
-    // var filename = args[2];
-    // var folder = args[3];
-    //
-    // var selection = nodes.concat(backdrops);
-    // doc.selectedNodes = selection;
-
-
-
 /**
  * Toggle instance in Harmony.
  * @function

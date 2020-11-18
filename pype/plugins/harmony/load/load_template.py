@@ -7,6 +7,8 @@ import shutil
 import uuid
 
 from avalon import api, harmony
+from avalon.pipeline import get_representation_context
+
 import pype.lib
 
 
@@ -80,6 +82,7 @@ class TemplateLoader(api.Loader):
         node_name = container["name"]
         node = harmony.find_node_by_name(node_name, "GROUP")
         self_name = self.__class__.__name__
+        context = get_representation_context(representation)
 
         if pype.lib.is_latest(representation):
             self._set_green(node)
@@ -94,8 +97,9 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
+
         updated_container = self.load(
-            container["context"], container["name"],
+            context, container["name"],
             None, container["data"])["name"]
 
         print("*"*80)
