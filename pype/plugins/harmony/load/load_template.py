@@ -118,10 +118,6 @@ class TemplateLoader(api.Loader):
                 }
             )["result"]
 
-            if success:
-
-
-
         # now remove old the container from scene data
         harmony.remove(container_to_update["name"])
 
