@@ -108,19 +108,19 @@ TemplateLoader.prototype.loadContainer = function(args) {
 /**
  * Replace existing node container.
  * @function
- * @param  {string}  dstNodePath Harmony path to destination Node.
- * @param  {string}  srcNodePath Harmony path to source Node.
+ * @param  {array}  args[0] Harmony path to destination Node.
+                    args[1] Harmony path to source Node.
  * @return {boolean}             Success
  * @todo   This is work in progress.
  */
-TemplateLoader.prototype.replaceNode = function(
-    dstNodePath, srcNodePath, renameSrc)
+TemplateLoader.prototype.replaceNode = function(args)
 {
     var doc = $.scn;
     var link, inNode, inPort, outPort, outNode, success;
 
-    srcNode = doc.$node(srcNodePath);
-    dstNode = doc.$node(dstNodePath);
+    srcNode = doc.$node(args[0]);
+    dstNode = doc.$node(args[1]);
+
     MessageLog.trace(srcNode);
     MessageLog.trace(dstNode);
     $.beginUndo();
