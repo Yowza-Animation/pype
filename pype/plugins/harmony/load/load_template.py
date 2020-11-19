@@ -119,7 +119,7 @@ class TemplateLoader(api.Loader):
             )["result"]
 
         # now remove old the container from scene data
-        harmony.remove(container_to_update["name"])
+        harmony.remove(container_to_update)
 
         # harmony.imprint(
         #     node, {"representation": str(representation["_id"])}
