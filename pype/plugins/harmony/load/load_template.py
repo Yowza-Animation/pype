@@ -78,16 +78,16 @@ class TemplateLoader(api.Loader):
         """
 
         update_and_replace = False
-        node = container["objectName"]
+        container_to_update = container["objectName"]
 
 
         self_name = self.__class__.__name__
         context = get_representation_context(representation)
 
         if pype.lib.is_latest(representation):
-            self._set_green(node)
+            self._set_green(container_to_update)
         else:
-            self._set_red(node)
+            self._set_red(container_to_update)
 
         update_and_replace = harmony.send(
             {
@@ -105,21 +105,25 @@ class TemplateLoader(api.Loader):
 
         print("*"*80)
 
-        print(node)
+        print(container_to_update)
         print(updated_container)
         print("*" * 80)
 
         if update_and_replace:
 
-            harmony.send(
+            success = harmony.send(
                 {
-                    "function": f"PypeHarmony.Loaders.{self_name}."
-                                "replaceNode",
-                    "args": [node, updated_container]
+                    "function": f"PypeHarmony.Loaders.{self_name}.replaceNode",
+                    "args": [updated_container, container_to_update]
                 }
-            )
+            )["result"]
+
+            if success:
+
+
 
         # now remove old the container from scene data
+        harmony.remove(container_to_update["name"])
 
         # harmony.imprint(
         #     node, {"representation": str(representation["_id"])}

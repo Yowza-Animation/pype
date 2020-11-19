@@ -119,10 +119,13 @@ TemplateLoader.prototype.replaceNode = function(args)
     var link, inNode, inPort, outPort, outNode, success;
 
     srcNode = doc.$node(args[0]);
+
     dstNode = doc.$node(args[1]);
+    const dstNodeName = new String(dstNode.name);
 
     MessageLog.trace(srcNode);
     MessageLog.trace(dstNode);
+
     $.beginUndo();
 
     // Move this container to the same group as the container it is replacing
@@ -195,10 +198,15 @@ TemplateLoader.prototype.replaceNode = function(args)
             {
                 $.alert('Failed to connect ' + inNode + ' : ' +
                     inPort + ' <- ' + srcNode + ' : ' + outPort);
+                $.endUndo();
                 return false;
             }
         }
     }
+
+    dstNode.remove(false, false);
+    srcNode.name = dstNodeName;
+    $.endUndo();
     return true;
 };
 
