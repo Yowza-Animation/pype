@@ -63,10 +63,10 @@ class TemplateLoader(api.Loader):
         # We must validate the group_node
         return harmony.containerise(
             name,
-            namespace,
+            container_group.split("/")[-1],
             container_group,
             context,
-            self_name
+            self.label
         )
 
     def update(self, container, representation):
@@ -79,8 +79,9 @@ class TemplateLoader(api.Loader):
         """
 
         update_and_replace = False
-        node_name = container["name"]
-        node = harmony.find_node_by_name(node_name, "GROUP")
+        node = container["objectName"]
+
+
         self_name = self.__class__.__name__
         context = get_representation_context(representation)
 
@@ -104,12 +105,13 @@ class TemplateLoader(api.Loader):
                                       )
 
         print("*"*80)
+
         print(node)
         print(updated_container)
         print("*" * 80)
 
         if update_and_replace:
-            # FIXME: This won't work, need to implement it.
+
             harmony.send(
                 {
                     "function": f"PypeHarmony.Loaders.{self_name}."
@@ -118,9 +120,9 @@ class TemplateLoader(api.Loader):
                 }
             )
 
-        harmony.imprint(
-            node, {"representation": str(representation["_id"])}
-        )
+        # harmony.imprint(
+        #     node, {"representation": str(representation["_id"])}
+        # )
 
     def remove(self, container):
         """Remove container.
