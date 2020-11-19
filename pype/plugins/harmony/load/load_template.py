@@ -115,9 +115,11 @@ class TemplateLoader(api.Loader):
                 {
                     "function": f"PypeHarmony.Loaders.{self_name}."
                                 "replaceNode",
-                    "args": [node, updated_container, True, False]
+                    "args": [node, updated_container]
                 }
             )
+
+        # now remove old the container from scene data
 
         # harmony.imprint(
         #     node, {"representation": str(representation["_id"])}
