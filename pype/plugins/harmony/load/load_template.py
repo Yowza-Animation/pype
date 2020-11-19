@@ -59,14 +59,13 @@ class TemplateLoader(api.Loader):
         # Cleanup the temp directory
         shutil.rmtree(temp_dir)
 
-
         # We must validate the group_node
         return harmony.containerise(
             name,
-            container_group.split("/")[-1],
+            container_group,
             container_group,
             context,
-            self.label
+            self_name
         )
 
     def update(self, container, representation):
