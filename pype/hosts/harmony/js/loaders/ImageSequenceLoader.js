@@ -204,6 +204,8 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
  *    startFrame // Sequence starting frame
  * ];
  */
+
+
 ImageSequenceLoader.prototype.replaceFiles = function(args) {
     var files = args[0];
     MessageLog.trace(files);

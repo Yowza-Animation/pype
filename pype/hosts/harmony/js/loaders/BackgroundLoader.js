@@ -15,8 +15,7 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Background Image loader JS code.
  */
-var BackgroundLoader = function()
-{
+var BackgroundLoader = function() {
     this.PNGTransparencyMode = 0; // Premultiplied wih Black
     this.TGATransparencyMode = 0; // Premultiplied wih Black
     this.SGITransparencyMode = 0; // Premultiplied wih Black
@@ -24,11 +23,12 @@ var BackgroundLoader = function()
     this.FlatPSDTransparencyMode = 2; // Premultiplied wih White
 };
 
-BackgroundLoader.prototype.getUniqueColumnName = function( args )
+
+function getUniqueColumnName( column_prefix )
 {
     var suffix = 0;
     // finds if unique name for a column
-    var column_name = args[0];
+    var column_name = column_prefix;
     while(suffix < 2000)
     {
         if(!column.type(column_name))
@@ -40,7 +40,7 @@ BackgroundLoader.prototype.getUniqueColumnName = function( args )
     return column_name;
 }
 
-BackgroundLoader.prototype.import_files = function(args)
+function import_files(args)
 {
     var root = args[0];
     var files = args[1];
