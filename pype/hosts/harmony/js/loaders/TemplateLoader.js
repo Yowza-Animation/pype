@@ -218,7 +218,7 @@ TemplateLoader.prototype.askForColumnsUpdate = function() {
     dlg = new QMessageBox(null, "YourTitle", "YourErrorMessage");
     dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowStaysOnTopHint);
     dlg.raise();
-    dlg.move(100, 100);
+
     return ($.confirm(
         'Would you like to update in place and reconnect all \n' +
       'ins/outs, attributes, and columns?',
