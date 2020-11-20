@@ -214,6 +214,11 @@ TemplateLoader.prototype.replaceNode = function(args)
 TemplateLoader.prototype.askForColumnsUpdate = function() {
     // Ask user if they want to also update columns and
     // linked attributes here
+
+    dlg = new QMessageBox(QMessageBox.Critical, "YourTitle", "YourErrorMessage");
+    dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowStaysOnTopHint);
+    dlg.exec();
+
     return ($.confirm(
         'Would you like to update in place and reconnect all \n' +
       'ins/outs, attributes, and columns?',

@@ -5,14 +5,6 @@ from avalon import api, harmony
 import pype.lib
 
 
-copy_files = """function copyFile(srcFilename, dstFilename)
-{
-    var srcFile = new PermanentFile(srcFilename);
-    var dstFile = new PermanentFile(dstFilename);
-    srcFile.copy(dstFile);
-}
-"""
-
 import_files = """var PNGTransparencyMode = 1; //Premultiplied wih Black
 var TGATransparencyMode = 0; //Premultiplied wih Black
 var SGITransparencyMode = 0; //Premultiplied wih Black
