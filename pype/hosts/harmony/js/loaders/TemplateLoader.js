@@ -215,9 +215,8 @@ TemplateLoader.prototype.askForColumnsUpdate = function() {
     // Ask user if they want to also update columns and
     // linked attributes here
 
-    dlg = new QMessageBox(QMessageBox.Critical, "YourTitle", "YourErrorMessage");
+    dlg = new QMessageBox(null, "YourTitle", "YourErrorMessage");
     dlg.setWindowFlags(dlg.windowFlags() | Qt.WindowStaysOnTopHint);
-    dlg.exec();
     dlg.raise();
     dlg.move(100, 100);
     return ($.confirm(
