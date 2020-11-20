@@ -65,7 +65,6 @@ class ImageSequenceLoader(api.Loader):
             read_node,
             context,
             self_name,
-            nodes=[read_node]
         )
 
     def update(self, container, representation):
