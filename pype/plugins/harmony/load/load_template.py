@@ -40,7 +40,8 @@ class TemplateLoader(api.Loader):
         self_name = self.__class__.__name__
         temp_dir = tempfile.mkdtemp()
         zip_file = api.get_representation_path(context["representation"])
-        template_path = os.path.join(temp_dir, "temp.tpl")
+        template_path = os.path.normpath(
+            os.path.join(temp_dir, "temp.tpl")).replace('\\', '/')
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             zip_ref.extractall(template_path)
 
