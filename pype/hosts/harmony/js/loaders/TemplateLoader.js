@@ -49,7 +49,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
     // }
     //
     // nodeViewWidget.setFocus();
-
+    MessageLog.trace("1")
     nodeView = '';
     for (i = 0; i < 200; i++) {
         nodeView = 'View' + (i);
@@ -57,7 +57,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
             break;
         }
     }
-
+    MessageLog.trace("2")
     if (!nodeView) {
         $.alert('You must have a Node View open!',
                 'No Node View is currently open!\n'+
@@ -65,21 +65,21 @@ TemplateLoader.prototype.loadContainer = function(args) {
                 'OK!');
         return;
     }
-
+    MessageLog.trace("3")
     var currentGroup;
     if (!nodeView) {
         currentGroup = doc.root;
     } else {
         currentGroup = doc.$node(view.group(nodeView));
     }
-
+    MessageLog.trace("4")
     // Get a unique iterative name for the container group
     var num = 0;
     var containerGroupName = '';
     do {
         containerGroupName = assetName + '_' + (num++) + '_' + subset;
     } while (currentGroup.getNodeByName(containerGroupName) != null);
-
+    MessageLog.trace("5")
     // import the template
     var tplNodes = currentGroup.importTemplate(templatePath);
 
@@ -93,10 +93,10 @@ TemplateLoader.prototype.loadContainer = function(args) {
     //     containerGroupName, false, false, tplNodes);
 
     Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
-
+    MessageLog.trace("6")
     var containerGroup = doc.$node(doc.selectedNodes[0]);
     containerGroup.name = containerGroupName;
-
+    MessageLog.trace("7")
     // Add uuid to attribute of the container group
     node.createDynamicAttr(containerGroup, 'STRING', 'uuid', 'uuid', false);
     node.setTextAttr(containerGroup, 'uuid', 1.0, groupId);
