@@ -129,6 +129,7 @@ TemplateLoader.prototype.replaceNode = function(args)
         srcNode.moveToGroup(dstNode);
     }
 
+    // Connect all the old node's in links to the new node
     var inLinks = dstNode.getInLinks();
 
     for (var l in inLinks)
@@ -153,6 +154,7 @@ TemplateLoader.prototype.replaceNode = function(args)
         }
     }
 
+    // Connect all the old node's out links to the new node
     var outLinks = dstNode.getOutLinks();
 
     for (l in outLinks)
@@ -221,6 +223,7 @@ TemplateLoader.prototype.replaceNode = function(args)
     }
 
     dstNode.remove(false, false);
+
     srcNode.name = dstNodeName;
     $.endUndo();
     return true;
