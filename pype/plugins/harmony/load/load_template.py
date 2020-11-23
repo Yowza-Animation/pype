@@ -45,7 +45,10 @@ class TemplateLoader(api.Loader):
         with zipfile.ZipFile(zip_file, "r") as zip_ref:
             zip_ref.extractall(template_path)
 
+        # Create a uuid to be added to the container node's attrs
         group_id = "{}".format(uuid.uuid4())
+        # Add this container's uuid to the scene data
+        data["uuid"] = group_id
 
         container_group = harmony.send(
             {

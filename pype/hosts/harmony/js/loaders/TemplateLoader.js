@@ -83,14 +83,6 @@ TemplateLoader.prototype.loadContainer = function(args) {
     var tplNodes = currentGroup.importTemplate(templatePath);
 
     // Create the container group
-
-    //@TODO: instead of using the Action to create the group,
-    // this should be done manually since Harmony can be unreliable when it
-    // comes to always giving the selection of nodes after an Action
-
-    // var containerGroup = currentGroup.addGroup(
-    //     containerGroupName, false, false, tplNodes);
-
     Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
 
     var containerGroup = doc.$node(doc.selectedNodes[0]);
@@ -191,19 +183,19 @@ TemplateLoader.prototype.replaceNode = function(args)
                 }
             }
 
-            if (!success)
-            {
-                $.alert('Failed to connect ' + inNode + ' : ' +
-                    inPort + ' <- ' + srcNode + ' : ' + outPort);
-                $.endUndo();
-                return false;
-            }
+            // if (!success)
+            // {
+            //     $.alert('Failed to connect ' + inNode + ' : ' +
+            //         inPort + ' <- ' + srcNode + ' : ' + outPort);
+            //     $.endUndo();
+            //     return false;
+            // }
         }
     }
 
     // Place the replacement node in the same coords
-    srcNode.x = dstNode.x
-    srcNode.y = dstNode.y
+    srcNode.x = dstNode.x;
+    srcNode.y = dstNode.y;
 
     // Link all the attrs
     var _attributes = dstNode.attributes;
@@ -212,14 +204,14 @@ TemplateLoader.prototype.replaceNode = function(args)
     {
         var _clonedAttribute = srcNode.getAttributeByName(_attributes[i].keyword);
         _clonedAttribute.setToAttributeValue(_attributes[i]);
-        log(_clonedAttribute.column == null)
+        log(_clonedAttribute.column == null);
     }
 
     // Link all palettes
-    var palettes = dstNode.palettes
+    var palettes = dstNode.palettes;
     for (var i in palettes)
     {
-        srcNode.linkPalette(palettes[i])
+        srcNode.linkPalette(palettes[i]);
     }
 
     dstNode.remove(false, false);
@@ -234,10 +226,10 @@ TemplateLoader.prototype.askForColumnsUpdate = function() {
     // Ask user if they want to also update columns and
     // linked attributes here
     return ($.confirm(
-        'Would you like to update in place and reconnect all \n' +
-      'ins/outs, attributes, and columns?',
-        'Update & Replace?\n' +
-      'If you choose No, the version will only be loaded.',
+        'Update & Replace?',
+        'Choose "Yes" to reconnect all \n' +
+        'ins/outs, attributes, and columns? \n' +
+        'If you choose "No", the Version will only be loaded.',
         'Yes',
         'No'));
 };
