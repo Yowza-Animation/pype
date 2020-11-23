@@ -206,7 +206,8 @@ TemplateLoader.prototype.replaceNode = function(args)
     // Link all the attrs
     var _attributes = dstNode.attributes;
 
-    for (var i in _attributes){
+    for (var i in _attributes)
+    {
         var _clonedAttribute = srcNode.getAttributeByName(_attributes[i].keyword);
         _clonedAttribute.setToAttributeValue(_attributes[i]);
         log(_clonedAttribute.column == null)
@@ -214,7 +215,8 @@ TemplateLoader.prototype.replaceNode = function(args)
 
     // Link all palettes
     var palettes = dstNode.palettes
-        for (var i in palettes){
+    for (var i in palettes)
+    {
         srcNode.linkPalette(palettes[i])
     }
 
