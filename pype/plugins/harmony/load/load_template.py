@@ -56,16 +56,24 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
+        print(container_group)
+
+        if not container_group:
+            print("Failed to create container....")
+            return
+
         # Cleanup the temp directory
         # shutil.rmtree(temp_dir)
 
         # We must validate the group_node
         return harmony.containerise(
-            name,
-            container_group,
-            container_group,
-            context,
-            self_name
+            name=name,
+            namespace=container_group,
+            node=container_group,
+            context=context,
+            loader=self_name,
+            suffix=None,
+            data=data
         )
 
     def update(self, container, representation):
