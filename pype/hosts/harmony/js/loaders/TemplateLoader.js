@@ -34,12 +34,17 @@ var TemplateLoader = function() {};
  * ];
  */
 TemplateLoader.prototype.loadContainer = function(args) {
+    MessageLog.trace("000000000")
     var doc = $.scn;
+    MessageLog.trace("000000001")
     var templatePath = args[0];
+    MessageLog.trace("000000002")
     var assetName = args[1];
+    MessageLog.trace("000000003")
     var subset = args[2];
+    MessageLog.trace("000000004")
     var groupId = args[3];
-
+    MessageLog.trace("000000005")
     // Get the current group
     // Below does not work when the Node View is docked
     // var nodeViewWidget = $.app.getWidgetByName('Node View');
