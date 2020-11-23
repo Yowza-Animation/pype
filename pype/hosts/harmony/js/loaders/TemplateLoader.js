@@ -34,17 +34,11 @@ var TemplateLoader = function() {};
  * ];
  */
 TemplateLoader.prototype.loadContainer = function(args) {
-    MessageLog.trace("000000000")
     var doc = $.scn;
-    MessageLog.trace("000000001")
     var templatePath = args[0];
-    MessageLog.trace("000000002")
     var assetName = args[1];
-    MessageLog.trace("000000003")
     var subset = args[2];
-    MessageLog.trace("000000004")
     var groupId = args[3];
-    MessageLog.trace("000000005")
     // Get the current group
     // Below does not work when the Node View is docked
     // var nodeViewWidget = $.app.getWidgetByName('Node View');
@@ -54,7 +48,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
     // }
     //
     // nodeViewWidget.setFocus();
-    MessageLog.trace("1")
+
     nodeView = '';
     for (i = 0; i < 200; i++) {
         nodeView = 'View' + (i);
@@ -62,7 +56,7 @@ TemplateLoader.prototype.loadContainer = function(args) {
             break;
         }
     }
-    MessageLog.trace("2")
+
     if (!nodeView) {
         $.alert('You must have a Node View open!',
                 'No Node View is currently open!\n'+
@@ -70,21 +64,21 @@ TemplateLoader.prototype.loadContainer = function(args) {
                 'OK!');
         return;
     }
-    MessageLog.trace("3")
+
     var currentGroup;
     if (!nodeView) {
         currentGroup = doc.root;
     } else {
         currentGroup = doc.$node(view.group(nodeView));
     }
-    MessageLog.trace("4")
+
     // Get a unique iterative name for the container group
     var num = 0;
     var containerGroupName = '';
     do {
         containerGroupName = assetName + '_' + (num++) + '_' + subset;
     } while (currentGroup.getNodeByName(containerGroupName) != null);
-    MessageLog.trace("5")
+
     // import the template
     var tplNodes = currentGroup.importTemplate(templatePath);
 
@@ -98,10 +92,10 @@ TemplateLoader.prototype.loadContainer = function(args) {
     //     containerGroupName, false, false, tplNodes);
 
     Action.perform("onActionSelCreateGroupWithComposite()", "Node View");
-    MessageLog.trace("6")
+
     var containerGroup = doc.$node(doc.selectedNodes[0]);
     containerGroup.name = containerGroupName;
-    MessageLog.trace("7")
+
     // Add uuid to attribute of the container group
     node.createDynamicAttr(containerGroup, 'STRING', 'uuid', 'uuid', false);
     node.setTextAttr(containerGroup, 'uuid', 1.0, groupId);
@@ -124,13 +118,9 @@ TemplateLoader.prototype.replaceNode = function(args)
     var link, inNode, inPort, outPort, outNode, success;
 
     srcNode = doc.$node(args[0]);
-
     dstNode = doc.$node(args[1]);
+
     const dstNodeName = new String(dstNode.name);
-
-    MessageLog.trace(srcNode);
-    MessageLog.trace(dstNode);
-
     $.beginUndo();
 
     // Move this container to the same group as the container it is replacing
@@ -207,6 +197,25 @@ TemplateLoader.prototype.replaceNode = function(args)
                 return false;
             }
         }
+    }
+
+    // Place the replacement node in the same coords
+    srcNode.x = dstNode.x
+    srcNode.y = dstNode.y
+
+    // Link all the attrs
+    var _attributes = dstNode.attributes;
+
+    for (var i in _attributes){
+        var _clonedAttribute = srcNode.getAttributeByName(_attributes[i].keyword);
+        _clonedAttribute.setToAttributeValue(_attributes[i]);
+        log(_clonedAttribute.column == null)
+    }
+
+    // Link all palettes
+    var palettes = dstNode.palettes
+        for (var i in palettes){
+        srcNode.linkPalette(palettes[i])
     }
 
     dstNode.remove(false, false);
