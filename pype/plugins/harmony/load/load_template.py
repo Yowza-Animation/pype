@@ -1,15 +1,14 @@
 # -*- coding: utf-8 -*-
 """Load template."""
-import tempfile
-import zipfile
 import os
-import shutil
+import tempfile
+
+import pype.lib
 import uuid
+import zipfile
 
 from avalon import api, harmony
 from avalon.pipeline import get_representation_context
-
-import pype.lib
 
 
 class TemplateLoader(api.Loader):
@@ -80,18 +79,18 @@ class TemplateLoader(api.Loader):
             data=data
         )
 
-    def update(self, container, representation):
+    def update(self, container, representation, rename_container=True):
         """Update loaded containers.
 
         Args:
             container (dict): Container data.
             representation (dict): Representation data.
-
+            rename_container (bool): True to replace the node, False to
+            update(switch) but do not rename the new node to old node
+            name.
         """
 
-        update_and_replace = False
         container_to_update = container["objectName"]
-
 
         self_name = self.__class__.__name__
         context = get_representation_context(representation)
@@ -101,7 +100,7 @@ class TemplateLoader(api.Loader):
         else:
             self._set_red(container_to_update)
 
-        update_and_replace = harmony.send(
+        load_success = harmony.send(
             {
                 "function": f"PypeHarmony.Loaders.{self_name}."
                             "askForColumnsUpdate",
@@ -109,30 +108,32 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
+        if not load_success:
+            return
+
         updated_container = self.load(context,
                                       container["name"],
                                       container.get("namespace"),
                                       container.get("data")
                                       )
 
-        print("*"*80)
+        print("*" * 80)
 
         print(container_to_update)
         print(updated_container)
         print("*" * 80)
 
-        if update_and_replace:
+        success = harmony.send(
+            {
+                "function": f"PypeHarmony.Loaders.{self_name}.replaceNode",
+                "args": [updated_container, container_to_update, rename_container]
+            }
+        )["result"]
 
-            success = harmony.send(
-                {
-                    "function": f"PypeHarmony.Loaders.{self_name}.replaceNode",
-                    "args": [updated_container, container_to_update]
-                }
-            )["result"]
+        if success:
+            # now remove old the container from scene data
+            harmony.remove(container_to_update)
 
-            if success:
-                # now remove old the container from scene data
-                harmony.remove(container_to_update)
 
     def remove(self, container):
         """Remove container.
@@ -148,7 +149,7 @@ class TemplateLoader(api.Loader):
 
     def switch(self, container, representation):
         """Switch representation containers."""
-        self.update(container, representation)
+        self.update(container, representation, False)
 
     def _set_green(self, node):
         """Set node color to green `rgba(0, 255, 0, 255)`."""

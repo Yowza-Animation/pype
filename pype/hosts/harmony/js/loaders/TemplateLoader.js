@@ -15,7 +15,8 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Image Sequence loader JS code.
  */
-var TemplateLoader = function() {};
+var TemplateLoader = function () {
+};
 
 
 /**
@@ -33,7 +34,7 @@ var TemplateLoader = function() {};
  *  groupId       // unique ID (uuid4)
  * ];
  */
-TemplateLoader.prototype.loadContainer = function(args) {
+TemplateLoader.prototype.loadContainer = function (args) {
     var doc = $.scn;
     var templatePath = args[0];
     var assetName = args[1];
@@ -59,9 +60,9 @@ TemplateLoader.prototype.loadContainer = function(args) {
 
     if (!nodeView) {
         $.alert('You must have a Node View open!',
-                'No Node View is currently open!\n'+
-                'Open a Node View and Try Again.',
-                'OK!');
+            'No Node View is currently open!\n' +
+            'Open a Node View and Try Again.',
+            'OK!');
         return;
     }
 
@@ -99,47 +100,42 @@ TemplateLoader.prototype.loadContainer = function(args) {
 /**
  * Replace existing node container.
  * @function
- * @param  {array}  args[0] Harmony path to destination Node.
-                    args[1] Harmony path to source Node.
+ * @param  {array}  args[0] {String} Harmony path to destination Node.
+ args[1] {String} Harmony path to source Node.
+ args[1] {boolean} Rename the replaced container
  * @return {boolean}             Success
  * @todo   This is work in progress.
  */
-TemplateLoader.prototype.replaceNode = function(args)
-{
+TemplateLoader.prototype.replaceNode = function (args) {
     var doc = $.scn;
     var link, inNode, inPort, outPort, outNode, success;
 
     srcNode = doc.$node(args[0]);
     dstNode = doc.$node(args[1]);
+    rename_container = args[2];
 
     const dstNodeName = new String(dstNode.name);
     $.beginUndo();
 
     // Move this container to the same group as the container it is replacing
-    if (srcNode.group.path != dstNode.group.path)
-    {
+    if (srcNode.group.path != dstNode.group.path) {
         srcNode.moveToGroup(dstNode);
     }
 
     // Connect all the old node's in links to the new node
     var inLinks = dstNode.getInLinks();
 
-    for (var l in inLinks)
-    {
-        if (Object.prototype.hasOwnProperty.call(inLinks, l))
-        {
+    for (var l in inLinks) {
+        if (Object.prototype.hasOwnProperty.call(inLinks, l)) {
             link = inLinks[l];
             inPort = Number(link.inPort);
             outPort = Number(link.outPort);
             outNode = link.outNode;
             success = srcNode.linkInNode(outNode, inPort, outPort);
-            if (success)
-            {
+            if (success) {
                 $.log('Successfully connected ' + outNode + ' : ' +
                     outPort + ' -> ' + srcNode + ' : ' + inPort);
-            }
-            else
-            {
+            } else {
                 $.alert('Failed to connect ' + outNode + ' : ' +
                     outPort + ' -> ' + srcNode + ' : ' + inPort);
             }
@@ -149,10 +145,8 @@ TemplateLoader.prototype.replaceNode = function(args)
     // Connect all the old node's out links to the new node
     var outLinks = dstNode.getOutLinks();
 
-    for (l in outLinks)
-    {
-        if (Object.prototype.hasOwnProperty.call(outLinks, l))
-        {
+    for (l in outLinks) {
+        if (Object.prototype.hasOwnProperty.call(outLinks, l)) {
             link = outLinks[l];
             inPort = Number(link.inPort);
             outPort = Number(link.outPort);
@@ -162,34 +156,28 @@ TemplateLoader.prototype.replaceNode = function(args)
             inNode.unlinkInPort(inPort);
             success = srcNode.linkOutNode(inNode, outPort, inPort);
 
-            if (success)
-            {
+            if (success) {
                 $.log('Successfully connected ' + inNode + ' : ' +
                     inPort + ' <- ' + srcNode + ' : ' + outPort);
-            }
-            else
-            {
-                if (inNode.type == 'MultiLayerWrite')
-                {
+            } else {
+                if (inNode.type == 'MultiLayerWrite') {
                     $.log('Attempting standard api to connect the nodes...');
                     success = node.link(
                         srcNode, outPort, inNode,
                         inPort, node.numberOfInputPorts(inNode) + 1);
-                    if (success)
-                    {
+                    if (success) {
                         $.log('Successfully connected ' + inNode + ' : ' +
                             inPort + ' <- ' + srcNode + ' : ' + outPort);
                     }
                 }
             }
 
-            // if (!success)
-            // {
-            //     $.alert('Failed to connect ' + inNode + ' : ' +
-            //         inPort + ' <- ' + srcNode + ' : ' + outPort);
-            //     $.endUndo();
-            //     return false;
-            // }
+            if (!success)
+            {
+                $.alert('Failed to connect ' + inNode + ' : ' +
+                    inPort + ' <- ' + srcNode + ' : ' + outPort);
+                $.endUndo();
+            }
         }
     }
 
@@ -200,36 +188,39 @@ TemplateLoader.prototype.replaceNode = function(args)
     // Link all the attrs
     var _attributes = dstNode.attributes;
 
-    for (var i in _attributes)
-    {
+    for (var i in _attributes) {
         var _clonedAttribute = srcNode.getAttributeByName(_attributes[i].keyword);
         _clonedAttribute.setToAttributeValue(_attributes[i]);
-        log(_clonedAttribute.column == null);
+        $.log(_clonedAttribute.column == null);
     }
 
     // Link all palettes
     var palettes = dstNode.palettes;
-    for (var i in palettes)
-    {
+    for (var i in palettes) {
         srcNode.linkPalette(palettes[i]);
     }
 
+    // Delete the original node
     dstNode.remove(false, false);
 
-    srcNode.name = dstNodeName;
+    if (rename_container)
+    {
+        srcNode.name = dstNodeName;
+    }
+
     $.endUndo();
     return true;
 };
 
 
-TemplateLoader.prototype.askForColumnsUpdate = function() {
+TemplateLoader.prototype.askForColumnsUpdate = function () {
     // Ask user if they want to also update columns and
     // linked attributes here
     return ($.confirm(
-        'Update & Replace?',
         'Choose "Yes" to reconnect all \n' +
         'ins/outs, attributes, and columns? \n' +
         'If you choose "No", the Version will only be loaded.',
+        'Update & Replace?',
         'Yes',
         'No'));
 };
