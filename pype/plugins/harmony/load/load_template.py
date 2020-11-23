@@ -57,7 +57,7 @@ class TemplateLoader(api.Loader):
         )["result"]
 
         # Cleanup the temp directory
-        shutil.rmtree(temp_dir)
+        # shutil.rmtree(temp_dir)
 
         # We must validate the group_node
         return harmony.containerise(
