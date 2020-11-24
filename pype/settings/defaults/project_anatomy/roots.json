@@ -1,0 +1,5 @@
+{
+    "windows": "C:/projects",
+    "darwin": "/Volumes/path",
+    "linux": "/mnt/share/projects"
+}

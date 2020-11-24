@@ -1,3 +1,8 @@
+from .settings import (
+    system_settings,
+    project_settings,
+    environments
+)
 from pypeapp import (
     Logger,
     Anatomy,
@@ -34,19 +39,21 @@ from .action import (
 from .lib import (
     version_up,
     get_asset,
-    get_project,
     get_hierarchy,
-    get_subsets,
     get_version_from_path,
     get_last_version_from_path,
-    modified_environ,
-    add_tool_to_environment
+    source_hash,
+    get_latest_version
 )
 
 # Special naming case for subprocess since its a built-in method.
 from .lib import _subprocess as subprocess
 
 __all__ = [
+    "system_settings",
+    "project_settings",
+    "environments",
+
     "Logger",
     "Anatomy",
     "project_overrides_dir_path",
@@ -58,6 +65,7 @@ __all__ = [
 
     # Resources
     "resources",
+
     # plugin classes
     "Extractor",
     # ordering
@@ -76,14 +84,12 @@ __all__ = [
 
     # get contextual data
     "version_up",
-    "get_project",
     "get_hierarchy",
     "get_asset",
-    "get_subsets",
     "get_version_from_path",
     "get_last_version_from_path",
-    "modified_environ",
-    "add_tool_to_environment",
+    "source_hash",
 
-    "subprocess"
+    "subprocess",
+    "get_latest_version"
 ]

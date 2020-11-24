@@ -105,11 +105,10 @@ class IntentModel(QtGui.QStandardItemModel):
 
         intents_preset = (
             config.get_presets()
-            .get("tools", {})
-            .get("pyblish", {})
-            .get("ui", {})
-            .get("intents", {})
+            .get("global", {})
+            .get("intent", {})
         )
+
         default = intents_preset.get("default")
         items = intents_preset.get("items", {})
         if not items:
@@ -441,9 +440,6 @@ class PluginModel(QtGui.QStandardItemModel):
         if label is None:
             label = "Other"
 
-        if order is None:
-            order = 99999999999999
-
         group_item = self.group_items.get(label)
         if not group_item:
             group_item = GroupItem(label, order=order)
@@ -721,15 +717,18 @@ class InstanceModel(QtGui.QStandardItemModel):
 
     def append(self, instance):
         new_item = InstanceItem(instance)
-        families = new_item.data(Roles.FamiliesRole)
-        group_item = self.group_items.get(families[0])
-        if not group_item:
-            group_item = GroupItem(families[0])
-            self.appendRow(group_item)
-            self.group_items[families[0]] = group_item
-            self.group_created.emit(group_item.index())
+        if new_item.is_context:
+            self.appendRow(new_item)
+        else:
+            families = new_item.data(Roles.FamiliesRole)
+            group_item = self.group_items.get(families[0])
+            if not group_item:
+                group_item = GroupItem(families[0])
+                self.appendRow(group_item)
+                self.group_items[families[0]] = group_item
+                self.group_created.emit(group_item.index())
 
-        group_item.appendRow(new_item)
+            group_item.appendRow(new_item)
         instance_id = instance.id
         self.instance_items[instance_id] = new_item
 
@@ -846,160 +845,20 @@ class InstanceModel(QtGui.QStandardItemModel):
                 )
 
 
-class ArtistProxy(QtCore.QAbstractProxyModel):
+class InstanceSortProxy(QtCore.QSortFilterProxyModel):
     def __init__(self, *args, **kwargs):
-        self.mapping_from = []
-        self.mapping_to = []
-        super(ArtistProxy, self).__init__(*args, **kwargs)
+        super(InstanceSortProxy, self).__init__(*args, **kwargs)
+        # Do not care about lower/upper case
+        self.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
 
-    def on_rows_inserted(self, parent_index, from_row, to_row):
-        if not parent_index.isValid():
-            return
-
-        parent_row = parent_index.row()
-        if parent_row >= len(self.mapping_from):
-            self.mapping_from.append(list())
-
-        new_from = None
-        new_to = None
-        for row_num in range(from_row, to_row + 1):
-            new_row = len(self.mapping_to)
-            new_to = new_row
-            if new_from is None:
-                new_from = new_row
-
-            self.mapping_from[parent_row].insert(row_num, new_row)
-            self.mapping_to.insert(new_row, [parent_row, row_num])
-
-        self.rowsInserted.emit(self.parent(), new_from, new_to + 1)
-
-    def _remove_rows(self, parent_row, from_row, to_row):
-        removed_rows = []
-        increment_num = self.mapping_from[parent_row][from_row]
-        _emit_last = None
-        for row_num in reversed(range(from_row, to_row + 1)):
-            row = self.mapping_from[parent_row].pop(row_num)
-            _emit_last = row
-            removed_rows.append(row)
-
-        _emit_first = int(increment_num)
-        mapping_from_len = len(self.mapping_from)
-        mapping_from_parent_len = len(self.mapping_from[parent_row])
-        if parent_row < mapping_from_len:
-            for idx in range(from_row, mapping_from_parent_len):
-                self.mapping_from[parent_row][idx] = increment_num
-                increment_num += 1
-
-        if parent_row < mapping_from_len - 1:
-            for idx_i in range(parent_row + 1, mapping_from_len):
-                sub_values = self.mapping_from[idx_i]
-                if not sub_values:
-                    continue
-
-                for idx_j in range(0, len(sub_values)):
-                    self.mapping_from[idx_i][idx_j] = increment_num
-                    increment_num += 1
-
-        first_to_row = None
-        for row in removed_rows:
-            if first_to_row is None:
-                first_to_row = row
-            self.mapping_to.pop(row)
-
-        return (_emit_first, _emit_last)
-
-    def on_rows_removed(self, parent_index, from_row, to_row):
-        if parent_index.isValid():
-            parent_row = parent_index.row()
-            _emit_first, _emit_last = self._remove_rows(
-                parent_row, from_row, to_row
-            )
-            self.rowsRemoved.emit(self.parent(), _emit_first, _emit_last)
-
-        else:
-            removed_rows = False
-            emit_first = None
-            emit_last = None
-            for row_num in reversed(range(from_row, to_row + 1)):
-                remaining_rows = self.mapping_from[row_num]
-                if remaining_rows:
-                    removed_rows = True
-                    _emit_first, _emit_last = self._remove_rows(
-                        row_num, 0, len(remaining_rows) - 1
-                    )
-                    if emit_first is None:
-                        emit_first = _emit_first
-                    emit_last = _emit_last
-
-                self.mapping_from.pop(row_num)
-
-            diff = to_row - from_row + 1
-            mapping_to_len = len(self.mapping_to)
-            if from_row < mapping_to_len:
-                for idx in range(from_row, mapping_to_len):
-                    self.mapping_to[idx][0] -= diff
-
-            if removed_rows:
-                self.rowsRemoved.emit(self.parent(), emit_first, emit_last)
-
-    def on_reset(self):
-        self.modelReset.emit()
-        self.mapping_from = []
-        self.mapping_to = []
-
-    def setSourceModel(self, source_model):
-        super(ArtistProxy, self).setSourceModel(source_model)
-        source_model.rowsInserted.connect(self.on_rows_inserted)
-        source_model.rowsRemoved.connect(self.on_rows_removed)
-        source_model.modelReset.connect(self.on_reset)
-        source_model.dataChanged.connect(self.on_data_changed)
-
-    def on_data_changed(self, from_index, to_index, roles=None):
-        proxy_from_index = self.mapFromSource(from_index)
-        if from_index == to_index:
-            proxy_to_index = proxy_from_index
-        else:
-            proxy_to_index = self.mapFromSource(to_index)
-
-        args = [proxy_from_index, proxy_to_index]
-        if Qt.__binding__ not in ("PyQt4", "PySide"):
-            args.append(roles or [])
-        self.dataChanged.emit(*args)
-
-    def columnCount(self, parent=QtCore.QModelIndex()):
-        # This is not right for global proxy, but in this case it is enough
-        return self.sourceModel().columnCount()
-
-    def rowCount(self, parent=QtCore.QModelIndex()):
-        if parent.isValid():
-            return 0
-        return len(self.mapping_to)
-
-    def mapFromSource(self, index):
-        if not index.isValid():
-            return QtCore.QModelIndex()
-
-        parent_index = index.parent()
-        if not parent_index.isValid():
-            return QtCore.QModelIndex()
-
-        parent_idx = self.mapping_from[parent_index.row()]
-        my_row = parent_idx[index.row()]
-        return self.index(my_row, index.column())
-
-    def mapToSource(self, index):
-        if not index.isValid() or index.row() > len(self.mapping_to):
-            return self.sourceModel().index(index.row(), index.column())
-
-        parent_row, item_row = self.mapping_to[index.row()]
-        parent_index = self.sourceModel().index(parent_row, 0)
-        return self.sourceModel().index(item_row, 0, parent_index)
-
-    def index(self, row, column, parent=QtCore.QModelIndex()):
-        return self.createIndex(row, column, QtCore.QModelIndex())
-
-    def parent(self, index=None):
-        return QtCore.QModelIndex()
+    def lessThan(self, x_index, y_index):
+        x_type = x_index.data(Roles.TypeRole)
+        y_type = y_index.data(Roles.TypeRole)
+        if x_type != y_type:
+            if x_type == GroupType:
+                return False
+            return True
+        return super(InstanceSortProxy, self).lessThan(x_index, y_index)
 
 
 class TerminalDetailItem(QtGui.QStandardItem):
@@ -1149,48 +1008,52 @@ class TerminalModel(QtGui.QStandardItemModel):
 
         return prepared_records
 
-    def append(self, record_item):
-        record_type = record_item["type"]
+    def append(self, record_items):
+        all_record_items = []
+        for record_item in record_items:
+            record_type = record_item["type"]
 
-        terminal_item_type = None
-        if record_type == "record":
-            for level, _type in self.level_to_record:
-                if level > record_item["levelno"]:
-                    break
-                terminal_item_type = _type
+            terminal_item_type = None
+            if record_type == "record":
+                for level, _type in self.level_to_record:
+                    if level > record_item["levelno"]:
+                        break
+                    terminal_item_type = _type
 
-        else:
-            terminal_item_type = record_type
+            else:
+                terminal_item_type = record_type
 
-        icon_color = self.item_icon_colors.get(terminal_item_type)
-        icon_name = self.item_icon_name.get(record_type)
+            icon_color = self.item_icon_colors.get(terminal_item_type)
+            icon_name = self.item_icon_name.get(record_type)
 
-        top_item_icon = None
-        if icon_color and icon_name:
-            top_item_icon = QAwesomeIconFactory.icon(icon_name, icon_color)
+            top_item_icon = None
+            if icon_color and icon_name:
+                top_item_icon = QAwesomeIconFactory.icon(icon_name, icon_color)
 
-        label = record_item["label"].split("\n")[0]
+            label = record_item["label"].split("\n")[0]
 
-        top_item = QtGui.QStandardItem()
-        top_item.setData(TerminalLabelType, Roles.TypeRole)
-        top_item.setData(terminal_item_type, Roles.TerminalItemTypeRole)
-        top_item.setData(label, QtCore.Qt.DisplayRole)
-        top_item.setFlags(
-            QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
-        )
+            top_item = QtGui.QStandardItem()
+            all_record_items.append(top_item)
 
-        if top_item_icon:
-            top_item.setData(top_item_icon, QtCore.Qt.DecorationRole)
+            detail_item = TerminalDetailItem(record_item)
+            top_item.appendRow(detail_item)
 
-        self.appendRow(top_item)
+            top_item.setData(TerminalLabelType, Roles.TypeRole)
+            top_item.setData(terminal_item_type, Roles.TerminalItemTypeRole)
+            top_item.setData(label, QtCore.Qt.DisplayRole)
+            top_item.setFlags(
+                QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEnabled
+            )
 
-        detail_item = TerminalDetailItem(record_item)
-        detail_item.setData(TerminalDetailType, Roles.TypeRole)
-        top_item.appendRow(detail_item)
+            if top_item_icon:
+                top_item.setData(top_item_icon, QtCore.Qt.DecorationRole)
+
+            detail_item.setData(TerminalDetailType, Roles.TypeRole)
+
+        self.invisibleRootItem().appendRows(all_record_items)
 
     def update_with_result(self, result):
-        for record in result["records"]:
-            self.append(record)
+        self.append(result["records"])
 
 
 class TerminalProxy(QtCore.QSortFilterProxyModel):

@@ -37,7 +37,6 @@ class CollectNukeInstances(pyblish.api.ContextPlugin):
             except Exception as E:
                 self.log.warning(E)
 
-
             # get data from avalon knob
             self.log.debug("node[name]: {}".format(node['name'].value()))
             avalon_knob_data = get_avalon_knob_data(node, ["avalon:", "ak:"])
@@ -55,6 +54,11 @@ class CollectNukeInstances(pyblish.api.ContextPlugin):
             families_ak = avalon_knob_data.get("families")
             families = list()
 
+            if families_ak:
+                families.append(families_ak)
+
+            families.append(family)
+
             # except disabled nodes but exclude backdrops in test
             if ("nukenodes" not in family) and (node["disable"].value()):
                 continue
@@ -70,18 +74,23 @@ class CollectNukeInstances(pyblish.api.ContextPlugin):
             if node.Class() == "Group":
                 # only alter families for render family
                 if "write" in families_ak:
-                    if node["render"].value():
-                        self.log.info("flagged for render")
-                        add_family = "{}.local".format(family)
-                        # dealing with local/farm rendering
-                        if node["render_farm"].value():
-                            self.log.info("adding render farm family")
-                            add_family = "{}.farm".format(family)
-                            instance.data["transfer"] = False
-                        families.append(add_family)
-                    else:
-                        # add family into families
-                        families.insert(0, family)
+                    target = node["render"].value()
+                    if target == "Use existing frames":
+                        # Local rendering
+                        self.log.info("flagged for no render")
+                        families.append("render")
+                    elif target == "Local":
+                        # Local rendering
+                        self.log.info("flagged for local render")
+                        families.append("{}.local".format("render"))
+                    elif target == "On farm":
+                        # Farm rendering
+                        self.log.info("flagged for farm render")
+                        instance.data["transfer"] = False
+                        families.append("{}.farm".format("render"))
+                    if "render" in families:
+                        families.remove("render")
+                        family = "write"
 
                 node.begin()
                 for i in nuke.allNodes():
@@ -89,11 +98,6 @@ class CollectNukeInstances(pyblish.api.ContextPlugin):
                 node.end()
 
             self.log.debug("__ families: `{}`".format(families))
-
-            if families_ak:
-                families.append(families_ak)
-            else:
-                families.append(family)
 
             # Get format
             format = root['format'].value()
@@ -103,7 +107,7 @@ class CollectNukeInstances(pyblish.api.ContextPlugin):
 
             instance.data.update({
                 "subset": subset,
-                "asset": os.environ["AVALON_ASSET"],
+                "asset": avalon_knob_data["asset"],
                 "label": node.name(),
                 "name": node.name(),
                 "subset": subset,
