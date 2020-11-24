@@ -22,7 +22,17 @@ class ExtractReview(pyblish.api.InstancePlugin):
     label = "Extract Review"
     order = pyblish.api.ExtractorOrder + 0.02
     families = ["review"]
-    hosts = ["nuke", "maya", "shell", "nukestudio", "premiere", "harmony"]
+    hosts = [
+        "nuke",
+        "maya",
+        "shell",
+        "hiero",
+        "premiere",
+        "harmony",
+        "standalonepublisher",
+        "fusion",
+        "tvpaint"
+    ]
 
     # Supported extensions
     image_exts = ["exr", "jpg", "jpeg", "png", "dpx"]
@@ -42,6 +52,11 @@ class ExtractReview(pyblish.api.InstancePlugin):
     to_height = 1080
 
     def process(self, instance):
+        self.log.debug(instance.data["representations"])
+        # Skip review when requested.
+        if not instance.data.get("review", True):
+            return
+
         # ffmpeg doesn't support multipart exrs
         if instance.data.get("multipartExr") is True:
             instance_label = (
@@ -64,7 +79,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
         # Make sure cleanup happens and pop representations with "delete" tag.
         for repre in tuple(instance.data["representations"]):
             tags = repre.get("tags") or []
-            if "delete" in tags:
+            if "delete" in tags and "thumbnail" not in tags:
                 instance.data["representations"].remove(repre)
 
     def main_process(self, instance):
@@ -107,8 +122,24 @@ class ExtractReview(pyblish.api.InstancePlugin):
 
         # Loop through representations
         for repre in tuple(instance.data["representations"]):
+            repre_name = str(repre.get("name"))
             tags = repre.get("tags") or []
-            if "review" not in tags or "thumbnail" in tags:
+            if "review" not in tags:
+                self.log.debug((
+                    "Repre: {} - Didn't found \"review\" in tags. Skipping"
+                ).format(repre_name))
+                continue
+
+            if "thumbnail" in tags:
+                self.log.debug((
+                    "Repre: {} - Found \"thumbnail\" in tags. Skipping"
+                ).format(repre_name))
+                continue
+
+            if "passing" in tags:
+                self.log.debug((
+                    "Repre: {} - Found \"passing\" in tags. Skipping"
+                ).format(repre_name))
                 continue
 
             input_ext = repre["ext"]
@@ -164,8 +195,10 @@ class ExtractReview(pyblish.api.InstancePlugin):
 
                 # run subprocess
                 self.log.debug("Executing: {}".format(subprcs_cmd))
-                output = pype.api.subprocess(subprcs_cmd)
-                self.log.debug("Output: {}".format(output))
+
+                pype.api.subprocess(
+                    subprcs_cmd, shell=True, logger=self.log
+                )
 
                 output_name = output_def["filename_suffix"]
                 if temp_data["without_handles"]:
@@ -182,6 +215,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
                 # Force to pop these key if are in new repre
                 new_repre.pop("preview", None)
                 new_repre.pop("thumbnail", None)
+                if "clean_name" in new_repre.get("tags", []):
+                    new_repre.pop("outputName")
 
                 # adding representation
                 self.log.debug(
@@ -220,15 +255,16 @@ class ExtractReview(pyblish.api.InstancePlugin):
         """
 
         frame_start = instance.data["frameStart"]
-        handle_start = instance.data.get(
-            "handleStart",
-            instance.context.data["handleStart"]
-        )
         frame_end = instance.data["frameEnd"]
-        handle_end = instance.data.get(
-            "handleEnd",
-            instance.context.data["handleEnd"]
-        )
+
+        # Try to get handles from instance
+        handle_start = instance.data.get("handleStart")
+        handle_end = instance.data.get("handleEnd")
+        # If even one of handle values is not set on instance use
+        # handles from context
+        if handle_start is None or handle_end is None:
+            handle_start = instance.context.data["handleStart"]
+            handle_end = instance.context.data["handleEnd"]
 
         frame_start_handle = frame_start - handle_start
         frame_end_handle = frame_end + handle_end
@@ -241,6 +277,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
         else:
             output_frame_start = frame_start_handle
             output_frame_end = frame_end_handle
+
+        handles_are_set = handle_start > 0 or handle_end > 0
 
         return {
             "fps": float(instance.data["fps"]),
@@ -257,7 +295,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
             "resolution_height": instance.data.get("resolutionHeight"),
             "origin_repre": repre,
             "input_is_sequence": self.input_is_sequence(repre),
-            "without_handles": without_handles
+            "without_handles": without_handles,
+            "handles_are_set": handles_are_set
         }
 
     def _ffmpeg_arguments(self, output_def, instance, new_repre, temp_data):
@@ -300,7 +339,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
             )
 
         if temp_data["input_is_sequence"]:
-            # Set start frame
+            # Set start frame of input sequence (just frame in filename)
+            # - definition of input filepath
             ffmpeg_input_args.append(
                 "-start_number {}".format(temp_data["output_frame_start"])
             )
@@ -316,20 +356,37 @@ class ExtractReview(pyblish.api.InstancePlugin):
                 "-framerate {}".format(temp_data["fps"])
             )
 
-        elif temp_data["without_handles"]:
-            start_sec = float(temp_data["handle_start"]) / temp_data["fps"]
-            ffmpeg_input_args.append("-ss {:0.2f}".format(start_sec))
+        if temp_data["output_is_sequence"]:
+            # Set start frame of output sequence (just frame in filename)
+            # - this is definition of an output
+            ffmpeg_output_args.append(
+                "-start_number {}".format(temp_data["output_frame_start"])
+            )
 
+        # Change output's duration and start point if should not contain
+        # handles
+        if temp_data["without_handles"] and temp_data["handles_are_set"]:
+            # Set start time without handles
+            # - check if handle_start is bigger than 0 to avoid zero division
+            if temp_data["handle_start"] > 0:
+                start_sec = float(temp_data["handle_start"]) / temp_data["fps"]
+                ffmpeg_input_args.append("-ss {:0.2f}".format(start_sec))
+
+            # Set output duration inn seconds
             duration_sec = float(output_frames_len / temp_data["fps"])
             ffmpeg_output_args.append("-t {:0.2f}".format(duration_sec))
 
-        # Use shortest input
-        ffmpeg_output_args.append("-shortest")
+        # Set frame range of output when input or output is sequence
+        elif temp_data["input_is_sequence"] or temp_data["output_is_sequence"]:
+            ffmpeg_output_args.append("-frames:v {}".format(output_frames_len))
 
         # Add video/image input path
         ffmpeg_input_args.append(
             "-i \"{}\"".format(temp_data["full_input_path"])
         )
+
+        # Use shortest input
+        ffmpeg_output_args.append("-shortest")
 
         # Add audio arguments if there are any. Skipped when output are images.
         if not temp_data["output_ext_is_image"]:
@@ -422,7 +479,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                     audio_filters.append(arg)
 
         all_args = []
-        all_args.append(self.ffmpeg_path)
+        all_args.append("\"{}\"".format(self.ffmpeg_path))
         all_args.extend(input_args)
         if video_filters:
             all_args.append("-filter:v {}".format(",".join(video_filters)))
@@ -606,9 +663,31 @@ class ExtractReview(pyblish.api.InstancePlugin):
 
         # NOTE Skipped using instance's resolution
         full_input_path_single_file = temp_data["full_input_path_single_file"]
-        input_data = pype.lib.ffprobe_streams(full_input_path_single_file)[0]
+        input_data = pype.lib.ffprobe_streams(
+            full_input_path_single_file, self.log
+        )[0]
         input_width = int(input_data["width"])
         input_height = int(input_data["height"])
+
+        # Make sure input width and height is not an odd number
+        input_width_is_odd = bool(input_width % 2 != 0)
+        input_height_is_odd = bool(input_height % 2 != 0)
+        if input_width_is_odd or input_height_is_odd:
+            # Add padding to input and make sure this filter is at first place
+            filters.append("pad=width=ceil(iw/2)*2:height=ceil(ih/2)*2")
+
+            # Change input width or height as first filter will change them
+            if input_width_is_odd:
+                self.log.info((
+                    "Converting input width from odd to even number. {} -> {}"
+                ).format(input_width, input_width + 1))
+                input_width += 1
+
+            if input_height_is_odd:
+                self.log.info((
+                    "Converting input height from odd to even number. {} -> {}"
+                ).format(input_height, input_height + 1))
+                input_height += 1
 
         self.log.debug("pixel_aspect: `{}`".format(pixel_aspect))
         self.log.debug("input_width: `{}`".format(input_width))
@@ -630,6 +709,22 @@ class ExtractReview(pyblish.api.InstancePlugin):
 
         output_width = int(output_width)
         output_height = int(output_height)
+
+        # Make sure output width and height is not an odd number
+        # When this can happen:
+        # - if output definition has set width and height with odd number
+        # - `instance.data` contain width and height with odd numbeer
+        if output_width % 2 != 0:
+            self.log.warning((
+                "Converting output width from odd to even number. {} -> {}"
+            ).format(output_width, output_width + 1))
+            output_width += 1
+
+        if output_height % 2 != 0:
+            self.log.warning((
+                "Converting output height from odd to even number. {} -> {}"
+            ).format(output_height, output_height + 1))
+            output_height += 1
 
         self.log.debug(
             "Output resolution is {}x{}".format(output_width, output_height)
@@ -1306,7 +1401,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
                 output_args.extend(profile.get('output', []))
 
                 # defining image ratios
-                resolution_ratio = (float(resolution_width) * pixel_aspect) / resolution_height
+                resolution_ratio = (
+                    float(resolution_width) * pixel_aspect) / resolution_height
                 delivery_ratio = float(self.to_width) / float(self.to_height)
                 self.log.debug(
                     "__ resolution_ratio: `{}`".format(resolution_ratio))
@@ -1363,7 +1459,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
                 output_args.append("-shortest")
 
                 if no_handles:
-                    duration_sec = float(frame_end_handle - frame_start_handle + 1) / fps
+                    duration_sec = float(
+                        frame_end_handle - frame_start_handle + 1) / fps
 
                     output_args.append("-t {:0.2f}".format(duration_sec))
 
@@ -1385,7 +1482,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                         self.log.debug("lower then delivery")
                         width_scale = int(self.to_width * scale_factor)
                         width_half_pad = int((
-                            self.to_width - width_scale)/2)
+                            self.to_width - width_scale) / 2)
                         height_scale = self.to_height
                         height_half_pad = 0
                     else:
@@ -1400,7 +1497,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                         height_scale = int(
                             resolution_height * scale_factor)
                         height_half_pad = int(
-                            (self.to_height - height_scale)/2)
+                            (self.to_height - height_scale) / 2)
 
                     self.log.debug(
                         "__ width_scale: `{}`".format(width_scale))
@@ -1417,11 +1514,11 @@ class ExtractReview(pyblish.api.InstancePlugin):
                     scaling_arg = str(
                         "scale={0}x{1}:flags=lanczos,"
                         "pad={2}:{3}:{4}:{5}:black,setsar=1"
-                            ).format(width_scale, height_scale,
-                                     self.to_width, self.to_height,
-                                     width_half_pad,
-                                     height_half_pad
-                                     )
+                    ).format(width_scale, height_scale,
+                             self.to_width, self.to_height,
+                             width_half_pad,
+                             height_half_pad
+                             )
 
                     vf_back = self.add_video_filter_args(
                         output_args, scaling_arg)
@@ -1441,7 +1538,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                     lut_arg = "lut3d=file='{}'".format(
                         lut_path.replace(
                             "\\", "/").replace(":/", "\\:/")
-                            )
+                    )
                     lut_arg += ",colormatrix=bt601:bt709"
 
                     vf_back = self.add_video_filter_args(
@@ -1461,7 +1558,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                         os.mkdir(stg_dir)
 
                 mov_args = [
-                    ffmpeg_path,
+                    "\"{}\"".format(ffmpeg_path),
                     " ".join(input_args),
                     " ".join(output_args)
                 ]
@@ -1469,7 +1566,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
 
                 # run subprocess
                 self.log.debug("Executing: {}".format(subprcs_cmd))
-                output = pype.api.subprocess(subprcs_cmd)
+                output = pype.api.subprocess(subprcs_cmd, shell=True)
                 self.log.debug("Output: {}".format(output))
 
                 # create representation data
@@ -1496,7 +1593,7 @@ class ExtractReview(pyblish.api.InstancePlugin):
                         "outputName": name + "_noHandles",
                         "frameStartFtrack": frame_start,
                         "frameEndFtrack": frame_end
-                        })
+                    })
                 if repre_new.get('preview'):
                     repre_new.pop("preview")
                 if repre_new.get('thumbnail'):
@@ -1509,6 +1606,8 @@ class ExtractReview(pyblish.api.InstancePlugin):
         for repre in representations_new:
             if "delete" in repre.get("tags", []):
                 representations_new.remove(repre)
+            if "clean_name" in repre.get("tags", []):
+                repre_new.pop("outputName")
 
         instance.data.update({
             "reviewToWidth": self.to_width,

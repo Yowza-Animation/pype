@@ -2,6 +2,7 @@ import os
 import re
 import json
 import copy
+import tempfile
 
 import pype.api
 import pyblish
@@ -19,7 +20,16 @@ class ExtractBurnin(pype.api.Extractor):
     label = "Extract burnins"
     order = pyblish.api.ExtractorOrder + 0.03
     families = ["review", "burnin"]
-    hosts = ["nuke", "maya", "shell", "nukestudio", "premiere"]
+    hosts = [
+        "nuke",
+        "maya",
+        "shell",
+        "hiero",
+        "premiere",
+        "standalonepublisher",
+        "harmony",
+        "fusion"
+    ]
     optional = True
 
     positions = [
@@ -65,11 +75,9 @@ class ExtractBurnin(pype.api.Extractor):
         # Remove any representations tagged for deletion.
         # QUESTION Is possible to have representation with "delete" tag?
         for repre in tuple(instance.data["representations"]):
-            if "delete" in repre.get("tags", []):
+            if all(x in repre.get("tags", []) for x in ['delete', 'burnin']):
                 self.log.debug("Removing representation: {}".format(repre))
                 instance.data["representations"].remove(repre)
-
-        self.log.debug(instance.data["representations"])
 
     def use_legacy_code(self, instance):
         presets = instance.context.data.get("presets")
@@ -150,6 +158,11 @@ class ExtractBurnin(pype.api.Extractor):
             filled_anatomy = anatomy.format_all(burnin_data)
             burnin_data["anatomy"] = filled_anatomy.get_solved()
 
+            # Add source camera name to burnin data
+            camera_name = repre.get("camera_name")
+            if camera_name:
+                burnin_data["camera_name"] = camera_name
+
             first_output = True
 
             files_to_delete = []
@@ -187,11 +200,14 @@ class ExtractBurnin(pype.api.Extractor):
                 if "delete" in new_repre["tags"]:
                     new_repre["tags"].remove("delete")
 
-                # Update name and outputName to be able have multiple outputs
-                # Join previous "outputName" with filename suffix
-                new_name = "_".join([new_repre["outputName"], filename_suffix])
-                new_repre["name"] = new_name
-                new_repre["outputName"] = new_name
+                if len(repre_burnin_defs.keys()) > 1:
+                    # Update name and outputName to be
+                    # able have multiple outputs in case of more burnin presets
+                    # Join previous "outputName" with filename suffix
+                    new_name = "_".join(
+                        [new_repre["outputName"], filename_suffix])
+                    new_repre["name"] = new_name
+                    new_repre["outputName"] = new_name
 
                 # Prepare paths and files for process.
                 self.input_output_paths(new_repre, temp_data, filename_suffix)
@@ -212,13 +228,30 @@ class ExtractBurnin(pype.api.Extractor):
                 # Dump data to string
                 dumped_script_data = json.dumps(script_data)
 
+                # Store dumped json to temporary file
+                temporary_json_file = tempfile.NamedTemporaryFile(
+                    mode="w", suffix=".json", delete=False
+                )
+                temporary_json_file.write(dumped_script_data)
+                temporary_json_file.close()
+                temporary_json_filepath = temporary_json_file.name.replace(
+                    "\\", "/"
+                )
+
                 # Prepare subprocess arguments
-                args = [executable, scriptpath, dumped_script_data]
-                self.log.debug("Executing: {}".format(args))
+                args = [
+                    "\"{}\"".format(executable),
+                    "\"{}\"".format(scriptpath),
+                    "\"{}\"".format(temporary_json_filepath)
+                ]
+                subprcs_cmd = " ".join(args)
+                self.log.debug("Executing: {}".format(subprcs_cmd))
 
                 # Run burnin script
-                output = pype.api.subprocess(args)
-                self.log.debug("Output: {}".format(output))
+                pype.api.subprocess(subprcs_cmd, shell=True, logger=self.log)
+
+                # Remove the temporary json
+                os.remove(temporary_json_filepath)
 
                 for filepath in temp_data["full_input_paths"]:
                     filepath = filepath.replace("\\", "/")
@@ -303,12 +336,15 @@ class ExtractBurnin(pype.api.Extractor):
             "comment": context.data.get("comment") or ""
         })
 
-        intent_label = context.data.get("intent")
+        intent_label = context.data.get("intent") or ""
         if intent_label and isinstance(intent_label, dict):
-            intent_label = intent_label.get("label")
+            value = intent_label.get("value")
+            if value:
+                intent_label = intent_label["label"]
+            else:
+                intent_label = ""
 
-        if intent_label:
-            burnin_data["intent"] = intent_label
+        burnin_data["intent"] = intent_label
 
         temp_data = {
             "frame_start": frame_start,
@@ -957,7 +993,7 @@ class ExtractBurnin(pype.api.Extractor):
 
             args = [executable, scriptpath, json_data]
             self.log.debug("Executing: {}".format(args))
-            output = pype.api.subprocess(args)
+            output = pype.api.subprocess(args, shell=True, logger=self.log)
             self.log.debug("Output: {}".format(output))
 
             repre_update = {

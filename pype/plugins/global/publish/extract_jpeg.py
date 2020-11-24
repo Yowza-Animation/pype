@@ -9,7 +9,7 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
     """Create jpg thumbnail from sequence using ffmpeg"""
 
     label = "Extract Jpeg EXR"
-    hosts = ["shell"]
+    hosts = ["shell", "fusion"]
     order = pyblish.api.ExtractorOrder
     families = ["imagesequence", "render", "render2d", "source"]
     enabled = False
@@ -24,6 +24,10 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
 
         # ffmpeg doesn't support multipart exrs
         if instance.data.get("multipartExr") is True:
+            return
+
+        # Skip review when requested.
+        if not instance.data.get("review", True):
             return
 
         # get representation and loop them
@@ -44,10 +48,11 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
                 continue
 
             if not isinstance(repre['files'], (list, tuple)):
-                continue
+                input_file = repre['files']
+            else:
+                input_file = repre['files'][0]
 
             stagingdir = os.path.normpath(repre.get("stagingDir"))
-            input_file = repre['files'][0]
 
             # input_file = (
             #     collections[0].format('{head}{padding}{tail}') % start
@@ -67,7 +72,7 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
             ffmpeg_args = self.ffmpeg_args or {}
 
             jpeg_items = []
-            jpeg_items.append(ffmpeg_path)
+            jpeg_items.append("\"{}\"".format(ffmpeg_path))
             # override file if already exists
             jpeg_items.append("-y")
             # use same input args like with mov
@@ -76,6 +81,11 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
             jpeg_items.append("-i {}".format(full_input_path))
             # output arguments from presets
             jpeg_items.extend(ffmpeg_args.get("output") or [])
+
+            # If its a movie file, we just want one frame.
+            if repre["ext"] == "mov":
+                jpeg_items.append("-vframes 1")
+
             # output file
             jpeg_items.append(full_output_path)
 
@@ -83,7 +93,7 @@ class ExtractJpegEXR(pyblish.api.InstancePlugin):
 
             # run subprocess
             self.log.debug("{}".format(subprocess_jpeg))
-            pype.api.subprocess(subprocess_jpeg)
+            pype.api.subprocess(subprocess_jpeg, shell=True)
 
             if "representations" not in instance.data:
                 instance.data["representations"] = []

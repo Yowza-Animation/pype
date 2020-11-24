@@ -26,7 +26,7 @@ class ExtractReviewSlate(pype.api.Extractor):
         slate_path = inst_data.get("slateFrame")
         ffmpeg_path = pype.lib.get_ffmpeg_tool_path("ffmpeg")
 
-        slate_stream = pype.lib.ffprobe_streams(slate_path)[0]
+        slate_stream = pype.lib.ffprobe_streams(slate_path, self.log)[0]
         slate_width = slate_stream["width"]
         slate_height = slate_stream["height"]
 
@@ -178,7 +178,7 @@ class ExtractReviewSlate(pype.api.Extractor):
             _remove_at_end.append(slate_v_path)
 
             slate_args = [
-                ffmpeg_path,
+                "\"{}\"".format(ffmpeg_path),
                 " ".join(input_args),
                 " ".join(output_args)
             ]
@@ -186,7 +186,7 @@ class ExtractReviewSlate(pype.api.Extractor):
 
             # run slate generation subprocess
             self.log.debug("Slate Executing: {}".format(slate_subprcs_cmd))
-            slate_output = pype.api.subprocess(slate_subprcs_cmd)
+            slate_output = pype.api.subprocess(slate_subprcs_cmd, shell=True)
             self.log.debug("Slate Output: {}".format(slate_output))
 
             # create ffmpeg concat text file path
@@ -221,7 +221,7 @@ class ExtractReviewSlate(pype.api.Extractor):
 
             # ffmpeg concat subprocess
             self.log.debug("Executing concat: {}".format(concat_subprcs_cmd))
-            concat_output = pype.api.subprocess(concat_subprcs_cmd)
+            concat_output = pype.api.subprocess(concat_subprcs_cmd, shell=True)
             self.log.debug("Output concat: {}".format(concat_output))
 
             self.log.debug("__ repre[tags]: {}".format(repre["tags"]))
@@ -299,7 +299,7 @@ class ExtractReviewSlate(pype.api.Extractor):
 
         try:
             # Get information about input file via ffprobe tool
-            streams = pype.lib.ffprobe_streams(full_input_path)
+            streams = pype.lib.ffprobe_streams(full_input_path, self.log)
         except Exception:
             self.log.warning(
                 "Could not get codec data from input.",

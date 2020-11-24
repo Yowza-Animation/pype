@@ -2,14 +2,13 @@ import os
 import toml
 import time
 from pype.modules.ftrack.lib import AppAction
-from avalon import lib
-from pype.api import Logger
-from pype.lib import get_all_avalon_projects
+from avalon import lib, api
+from pype.api import Logger, config
 
 log = Logger().get_logger(__name__)
 
 
-def registerApp(app, session, plugins_presets):
+def register_app(app, dbcon, session, plugins_presets):
     name = app['name']
     variant = ""
     try:
@@ -40,7 +39,7 @@ def registerApp(app, session, plugins_presets):
 
     # register action
     AppAction(
-        session, label, name, executable, variant,
+        session, dbcon, label, name, executable, variant,
         icon, description, preactions, plugins_presets
     ).register()
 
@@ -49,17 +48,26 @@ def registerApp(app, session, plugins_presets):
 
 
 def register(session, plugins_presets={}):
-    # WARNING getting projects only helps to check connection to mongo
-    # - without will `discover` of ftrack apps actions take ages
-    result = get_all_avalon_projects()
+    app_usages = (
+        config.get_presets()
+        .get("global", {})
+        .get("applications")
+    ) or {}
 
     apps = []
-
+    missing_app_names = []
     launchers_path = os.path.join(os.environ["PYPE_CONFIG"], "launchers")
     for file in os.listdir(launchers_path):
         filename, ext = os.path.splitext(file)
         if ext.lower() != ".toml":
             continue
+
+        app_usage = app_usages.get(filename)
+        if not app_usage:
+            if app_usage is None:
+                missing_app_names.append(filename)
+            continue
+
         loaded_data = toml.load(os.path.join(launchers_path, file))
         app_data = {
             "name": filename,
@@ -67,16 +75,27 @@ def register(session, plugins_presets={}):
         }
         apps.append(app_data)
 
-    apps = sorted(apps, key=lambda x: x['name'])
+    if missing_app_names:
+        log.debug(
+            "Apps not defined in applications usage. ({})".format(
+                ", ".join((
+                    "\"{}\"".format(app_name)
+                    for app_name in missing_app_names
+                ))
+            )
+        )
+
+    dbcon = api.AvalonMongoDB()
+    apps = sorted(apps, key=lambda app: app["name"])
     app_counter = 0
     for app in apps:
         try:
-            registerApp(app, session, plugins_presets)
+            register_app(app, dbcon, session, plugins_presets)
             if app_counter % 5 == 0:
                 time.sleep(0.1)
             app_counter += 1
         except Exception as exc:
-            log.exception(
+            log.warning(
                 "\"{}\" - not a proper App ({})".format(app['name'], str(exc)),
                 exc_info=True
             )

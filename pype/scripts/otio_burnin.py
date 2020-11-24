@@ -2,12 +2,11 @@ import os
 import sys
 import re
 import subprocess
+import platform
 import json
 import opentimelineio_contrib.adapters.ffmpeg_burnins as ffmpeg_burnins
-from pype.api import Logger, config
+from pype.api import config, resources
 import pype.lib
-
-log = Logger().get_logger("BurninWrapper", "burninwrap")
 
 
 ffmpeg_path = pype.lib.get_ffmpeg_tool_path("ffmpeg")
@@ -15,16 +14,16 @@ ffprobe_path = pype.lib.get_ffmpeg_tool_path("ffprobe")
 
 
 FFMPEG = (
-    '{} -loglevel panic -i %(input)s %(filters)s %(args)s%(output)s'
+    '"{}" -i "%(input)s" %(filters)s %(args)s%(output)s'
 ).format(ffmpeg_path)
 
 FFPROBE = (
-    '{} -v quiet -print_format json -show_format -show_streams "%(source)s"'
+    '"{}" -v quiet -print_format json -show_format -show_streams "%(source)s"'
 ).format(ffprobe_path)
 
 DRAWTEXT = (
-    "drawtext=text=\\'%(text)s\\':x=%(x)s:y=%(y)s:fontcolor="
-    "%(color)s@%(opacity).1f:fontsize=%(size)d:fontfile='%(font)s'"
+    "drawtext=fontfile='%(font)s':text=\\'%(text)s\\':"
+    "x=%(x)s:y=%(y)s:fontcolor=%(color)s@%(opacity).1f:fontsize=%(size)d"
 )
 TIMECODE = (
     "drawtext=timecode=\\'%(timecode)s\\':text=\\'%(text)s\\'"
@@ -54,7 +53,7 @@ def _streams(source):
 
 def get_fps(str_value):
     if str_value == "0/0":
-        log.warning("Source has \"r_frame_rate\" value set to \"0/0\".")
+        print("WARNING: Source has \"r_frame_rate\" value set to \"0/0\".")
         return "Unknown"
 
     items = str_value.split("/")
@@ -214,9 +213,7 @@ class ModifiedBurnins(ffmpeg_burnins.Burnins):
             if frame_start is None:
                 replacement_final = replacement_size = str(MISSING_KEY_VALUE)
             else:
-                replacement_final = "\\'{}\\'".format(
-                    r'%%{eif\:n+%d\:d}' % frame_start
-                )
+                replacement_final = "%{eif:n+" + str(frame_start) + ":d}"
                 replacement_size = str(frame_end)
 
             final_text = final_text.replace(
@@ -238,13 +235,32 @@ class ModifiedBurnins(ffmpeg_burnins.Burnins):
         }
         timecode_text = options.get("timecode") or ""
         text_for_size += timecode_text
+
         data.update(options)
+
+        os_system = platform.system().lower()
+        data_font = data.get("font")
+        if not data_font:
+            data_font = (
+                resources.get_liberation_font_path().replace("\\", "/")
+            )
+        elif isinstance(data_font, dict):
+            data_font = data_font[os_system]
+
+        if data_font:
+            data["font"] = data_font
+            options["font"] = data_font
+            if ffmpeg_burnins._is_windows():
+                data["font"] = (
+                    data_font
+                    .replace(os.sep, r'\\' + os.sep)
+                    .replace(':', r'\:')
+                )
+
         data.update(
             ffmpeg_burnins._drawtext(align, resolution, text_for_size, options)
         )
-        if 'font' in data and ffmpeg_burnins._is_windows():
-            data['font'] = data['font'].replace(os.sep, r'\\' + os.sep)
-            data['font'] = data['font'].replace(':', r'\:')
+
         self.filters['drawtext'].append(draw % data)
 
         if options.get('bg_color') is not None:
@@ -299,17 +315,36 @@ class ModifiedBurnins(ffmpeg_burnins.Burnins):
             args=args,
             overwrite=overwrite
         )
-        log.info("Launching command: {}".format(command))
+        print("Launching command: {}".format(command))
 
-        proc = subprocess.Popen(command, shell=True)
-        log.info(proc.communicate()[0])
+        proc = subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=True
+        )
+
+        _stdout, _stderr = proc.communicate()
+        if _stdout:
+            for line in _stdout.split(b"\r\n"):
+                print(line.decode("utf-8"))
+
+        # This will probably never happen as ffmpeg use stdout
+        if _stderr:
+            for line in _stderr.split(b"\r\n"):
+                print(line.decode("utf-8"))
+
         if proc.returncode != 0:
-            raise RuntimeError("Failed to render '%s': %s'"
-                               % (output, command))
+            raise RuntimeError(
+                "Failed to render '{}': {}'".format(output, command)
+            )
         if is_sequence:
             output = output % kwargs.get("duration")
+
         if not os.path.exists(output):
-            raise RuntimeError("Failed to generate this fucking file '%s'" % output)
+            raise RuntimeError(
+                "Failed to generate this f*cking file '%s'" % output
+            )
 
 
 def example(input_path, output_path):
@@ -459,7 +494,7 @@ def burnins_from_data(
         # Replace with missing key value if frame_start_tc is not set
         if frame_start_tc is None and has_timecode:
             has_timecode = False
-            log.warning(
+            print(
                 "`frame_start` and `frame_start_tc`"
                 " are not set in entered data."
             )
@@ -468,7 +503,7 @@ def burnins_from_data(
         has_source_timecode = SOURCE_TIMECODE_KEY in value
         if source_timecode is None and has_source_timecode:
             has_source_timecode = False
-            log.warning("Source does not have set timecode value.")
+            print("Source does not have set timecode value.")
             value = value.replace(SOURCE_TIMECODE_KEY, MISSING_KEY_VALUE)
 
         key_pattern = re.compile(r"(\{.*?[^{0]*\})")
@@ -524,9 +559,16 @@ def burnins_from_data(
             profile_name = profile_name.replace(" ", "_").lower()
             ffmpeg_args.append("-profile:v {}".format(profile_name))
 
+        bit_rate = burnin._streams[0].get("bit_rate")
+        if bit_rate:
+            ffmpeg_args.append("-b:v {}".format(bit_rate))
+
         pix_fmt = burnin._streams[0].get("pix_fmt")
         if pix_fmt:
             ffmpeg_args.append("-pix_fmt {}".format(pix_fmt))
+
+    # Use group one (same as `-intra` argument, which is deprecated)
+    ffmpeg_args.append("-g 1")
 
     ffmpeg_args_str = " ".join(ffmpeg_args)
     burnin.render(
@@ -535,7 +577,11 @@ def burnins_from_data(
 
 
 if __name__ == "__main__":
-    in_data = json.loads(sys.argv[-1])
+    print("* Burnin script started")
+    in_data_json_path = sys.argv[-1]
+    with open(in_data_json_path, "r") as file_stream:
+        in_data = json.load(file_stream)
+
     burnins_from_data(
         in_data["input"],
         in_data["output"],
@@ -544,3 +590,4 @@ if __name__ == "__main__":
         options=in_data.get("options"),
         burnin_values=in_data.get("values")
     )
+    print("* Burnin script has finished")

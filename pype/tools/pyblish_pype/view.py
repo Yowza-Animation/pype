@@ -11,67 +11,12 @@ def _import_widgets():
         from . import widgets
 
 
-class ArtistView(QtWidgets.QListView):
-    # An item is requesting to be toggled, with optional forced-state
-    toggled = QtCore.Signal(QtCore.QModelIndex, object)
-    show_perspective = QtCore.Signal(QtCore.QModelIndex)
-
-    def __init__(self, parent=None):
-        super(ArtistView, self).__init__(parent)
-
-        self.horizontalScrollBar().hide()
-        self.viewport().setAttribute(QtCore.Qt.WA_Hover, True)
-        self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.setResizeMode(QtWidgets.QListView.Adjust)
-        self.setVerticalScrollMode(QtWidgets.QListView.ScrollPerPixel)
-
-    def event(self, event):
-        if not event.type() == QtCore.QEvent.KeyPress:
-            return super(ArtistView, self).event(event)
-
-        elif event.key() == QtCore.Qt.Key_Space:
-            for index in self.selectionModel().selectedIndexes():
-                self.toggled.emit(index, None)
-
-            return True
-
-        elif event.key() == QtCore.Qt.Key_Backspace:
-            for index in self.selectionModel().selectedIndexes():
-                self.toggled.emit(index, False)
-
-            return True
-
-        elif event.key() == QtCore.Qt.Key_Return:
-            for index in self.selectionModel().selectedIndexes():
-                self.toggled.emit(index, True)
-
-            return True
-
-        return super(ArtistView, self).event(event)
-
-    def focusOutEvent(self, event):
-        self.selectionModel().clear()
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
-            indexes = self.selectionModel().selectedIndexes()
-            if len(indexes) <= 1 and event.pos().x() < 20:
-                for index in indexes:
-                    self.toggled.emit(index, None)
-            if len(indexes) == 1 and event.pos().x() > self.width() - 40:
-                for index in indexes:
-                    self.show_perspective.emit(index)
-
-        return super(ArtistView, self).mouseReleaseEvent(event)
-
-
 class OverviewView(QtWidgets.QTreeView):
     # An item is requesting to be toggled, with optional forced-state
     toggled = QtCore.Signal(QtCore.QModelIndex, object)
     show_perspective = QtCore.Signal(QtCore.QModelIndex)
 
-    def __init__(self, parent=None):
+    def __init__(self, animated, parent=None):
         super(OverviewView, self).__init__(parent)
 
         self.horizontalScrollBar().hide()
@@ -83,6 +28,8 @@ class OverviewView(QtWidgets.QTreeView):
         self.setHeaderHidden(True)
         self.setRootIsDecorated(False)
         self.setIndentation(0)
+        if animated:
+            self.setAnimated(True)
 
     def event(self, event):
         if not event.type() == QtCore.QEvent.KeyPress:
@@ -156,9 +103,13 @@ class PluginView(OverviewView):
 
 
 class InstanceView(OverviewView):
-    def __init__(self, parent=None):
-        super(InstanceView, self).__init__(parent)
+    def __init__(self, *args, **kwargs):
+        super(InstanceView, self).__init__(*args, **kwargs)
+        self.setSortingEnabled(True)
+        self.sortByColumn(0, QtCore.Qt.AscendingOrder)
         self.viewport().setMouseTracking(True)
+        self._pressed_group_index = None
+        self._pressed_expander = None
 
     def mouseMoveEvent(self, event):
         index = self.indexAt(event.pos())
@@ -176,6 +127,8 @@ class InstanceView(OverviewView):
             self.collapse(index)
 
     def group_toggle(self, index):
+        if not index.isValid():
+            return
         model = index.model()
 
         chilren_indexes_checked = []
@@ -201,25 +154,90 @@ class InstanceView(OverviewView):
             model.setData(index, new_state, QtCore.Qt.CheckStateRole)
             self.toggled.emit(index, new_state)
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == QtCore.Qt.LeftButton:
+    def _mouse_press(self, event):
+        if event.button() != QtCore.Qt.LeftButton:
+            return
+
+        self._pressed_group_index = None
+        self._pressed_expander = None
+
+        pos_index = self.indexAt(event.pos())
+        if not pos_index.isValid():
+            return
+
+        if pos_index.data(Roles.TypeRole) != model.InstanceType:
+            self._pressed_group_index = pos_index
+            if event.pos().x() < 20:
+                self._pressed_expander = True
+            else:
+                self._pressed_expander = False
+
+        elif event.pos().x() < 20:
             indexes = self.selectionModel().selectedIndexes()
-            if len(indexes) == 1:
-                index = indexes[0]
-                pos_index = self.indexAt(event.pos())
-                if index == pos_index:
-                    # If instance or Plugin
-                    if index.data(Roles.TypeRole) == model.InstanceType:
-                        if event.pos().x() < 20:
-                            self.toggled.emit(index, None)
-                        elif event.pos().x() > self.width() - 20:
-                            self.show_perspective.emit(index)
-                    else:
-                        if event.pos().x() < EXPANDER_WIDTH:
-                            self.item_expand(index)
-                        else:
-                            self.group_toggle(index)
-                            self.item_expand(index, True)
+            any_checked = False
+            if len(indexes) <= 1:
+                return
+
+            if pos_index in indexes:
+                for index in indexes:
+                    if index.data(QtCore.Qt.CheckStateRole):
+                        any_checked = True
+                        break
+
+                for index in indexes:
+                    self.toggled.emit(index, not any_checked)
+                return True
+            self.toggled.emit(pos_index, not any_checked)
+
+    def mousePressEvent(self, event):
+        if self._mouse_press(event):
+            return
+        return super(InstanceView, self).mousePressEvent(event)
+
+    def _mouse_release(self, event, pressed_expander, pressed_index):
+        if event.button() != QtCore.Qt.LeftButton:
+            return
+
+        pos_index = self.indexAt(event.pos())
+        if not pos_index.isValid():
+            return
+
+        if pos_index.data(Roles.TypeRole) == model.InstanceType:
+            indexes = self.selectionModel().selectedIndexes()
+            if len(indexes) == 1 and indexes[0] == pos_index:
+                if event.pos().x() < 20:
+                    self.toggled.emit(indexes[0], None)
+                elif event.pos().x() > self.width() - 20:
+                    self.show_perspective.emit(indexes[0])
+                return True
+            return
+
+        if pressed_index != pos_index:
+            return
+
+        if self.state() == QtWidgets.QTreeView.State.DragSelectingState:
+            indexes = self.selectionModel().selectedIndexes()
+            if len(indexes) != 1 or indexes[0] != pos_index:
+                return
+
+        if event.pos().x() < EXPANDER_WIDTH:
+            if pressed_expander is True:
+                self.item_expand(pos_index)
+                return True
+        else:
+            if pressed_expander is False:
+                self.group_toggle(pos_index)
+                self.item_expand(pos_index, True)
+                return True
+
+    def mouseReleaseEvent(self, event):
+        pressed_index = self._pressed_group_index
+        pressed_expander = self._pressed_expander is True
+        self._pressed_group_index = None
+        self._pressed_expander = None
+        result = self._mouse_release(event, pressed_expander, pressed_index)
+        if result:
+            return
         return super(InstanceView, self).mouseReleaseEvent(event)
 
 

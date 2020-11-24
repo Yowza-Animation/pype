@@ -1,10 +1,11 @@
 import os
 import re
 import queue
+import json
 import collections
 import copy
 
-from pype.modules.ftrack.lib.io_nonsingleton import DbConnector
+from avalon.api import AvalonMongoDB
 
 import avalon
 import avalon.api
@@ -15,6 +16,7 @@ from bson.objectid import ObjectId
 from bson.errors import InvalidId
 from pymongo import UpdateOne
 import ftrack_api
+from pype.api import config
 
 
 log = Logger().get_logger(__name__)
@@ -22,14 +24,26 @@ log = Logger().get_logger(__name__)
 
 # Current schemas for avalon types
 EntitySchemas = {
-    "project": "avalon-core:project-2.0",
-    "asset": "avalon-core:asset-3.0",
-    "config": "avalon-core:config-1.0"
+    "project": "pype:project-2.1",
+    "asset": "pype:asset-3.0",
+    "config": "pype:config-1.1"
 }
 
+# Group name of custom attributes
+CUST_ATTR_GROUP = "pype"
+
 # name of Custom attribute that stores mongo_id from avalon db
-CustAttrIdKey = "avalon_mongo_id"
-CustAttrAutoSync = "avalon_auto_sync"
+CUST_ATTR_ID_KEY = "avalon_mongo_id"
+CUST_ATTR_AUTO_SYNC = "avalon_auto_sync"
+
+
+def default_custom_attributes_definition():
+    json_file_path = os.path.join(
+        os.path.dirname(__file__), "custom_attributes.json"
+    )
+    with open(json_file_path, "r") as json_stream:
+        data = json.load(json_stream)
+    return data
 
 
 def check_regex(name, entity_type, in_schema=None, schema_patterns=None):
@@ -37,7 +51,7 @@ def check_regex(name, entity_type, in_schema=None, schema_patterns=None):
     if in_schema:
         schema_name = in_schema
     elif entity_type == "project":
-        schema_name = "project-2.0"
+        schema_name = "project-2.1"
     elif entity_type == "task":
         schema_name = "task"
 
@@ -51,10 +65,11 @@ def check_regex(name, entity_type, in_schema=None, schema_patterns=None):
         if not schema_obj:
             name_pattern = default_pattern
         else:
-            name_pattern = schema_obj.get(
-                "properties", {}).get(
-                "name", {}).get(
-                "pattern", default_pattern
+            name_pattern = (
+                schema_obj
+                .get("properties", {})
+                .get("name", {})
+                .get("pattern", default_pattern)
             )
         if schema_patterns is not None:
             schema_patterns[schema_name] = name_pattern
@@ -64,13 +79,14 @@ def check_regex(name, entity_type, in_schema=None, schema_patterns=None):
     return False
 
 
-def get_avalon_attr(session, split_hierarchical=True):
+def get_pype_attr(session, split_hierarchical=True):
     custom_attributes = []
     hier_custom_attributes = []
+    # TODO remove deprecated "avalon" group from query
     cust_attrs_query = (
         "select id, entity_type, object_type_id, is_hierarchical, default"
         " from CustomAttributeConfiguration"
-        " where group.name = \"avalon\""
+        " where group.name in (\"avalon\", \"pype\")"
     )
     all_avalon_attr = session.query(cust_attrs_query).all()
     for cust_attr in all_avalon_attr:
@@ -87,7 +103,40 @@ def get_avalon_attr(session, split_hierarchical=True):
     return custom_attributes
 
 
-def from_dict_to_set(data):
+def from_dict_to_set(data, is_project):
+    """
+        Converts 'data' into $set part of MongoDB update command.
+        Sets new or modified keys.
+        Tasks are updated completely, not per task. (Eg. change in any of the
+        tasks results in full update of "tasks" from Ftrack.
+    Args:
+        data (dictionary): up-to-date data from Ftrack
+        is_project (boolean): true for project
+
+    Returns:
+        (dictionary) - { "$set" : "{..}"}
+    """
+    not_set = object()
+    task_changes = not_set
+    if (
+        is_project
+        and "config" in data
+        and "tasks" in data["config"]
+    ):
+        task_changes = data["config"].pop("tasks")
+        task_changes_key = "config.tasks"
+        if not data["config"]:
+            data.pop("config")
+    elif (
+        not is_project
+        and "data" in data
+        and "tasks" in data["data"]
+    ):
+        task_changes = data["data"].pop("tasks")
+        task_changes_key = "data.tasks"
+        if not data["data"]:
+            data.pop("data")
+
     result = {"$set": {}}
     dict_queue = queue.Queue()
     dict_queue.put((None, data))
@@ -99,15 +148,21 @@ def from_dict_to_set(data):
             if _key is not None:
                 new_key = "{}.{}".format(_key, key)
 
-            if not isinstance(value, dict):
+            if not isinstance(value, dict) or \
+                    (isinstance(value, dict) and not bool(value)):  # empty dic
                 result["$set"][new_key] = value
                 continue
             dict_queue.put((new_key, value))
+
+    if task_changes is not not_set and task_changes_key:
+        result["$set"][task_changes_key] = task_changes
     return result
 
 
 def get_avalon_project_template(project_name):
     """Get avalon template
+    Args:
+        project_name: (string)
     Returns:
         dictionary with templates
     """
@@ -120,6 +175,16 @@ def get_avalon_project_template(project_name):
 
 
 def get_project_apps(in_app_list):
+    """
+        Returns metadata information about apps in 'in_app_list' enhanced
+        from toml files.
+    Args:
+        in_app_list: (list) - names of applications
+
+    Returns:
+        tuple (list, dictionary) - list of dictionaries about apps
+                                   dictionary of warnings
+    """
     apps = []
     # TODO report
     missing_toml_msg = "Missing config file for application"
@@ -224,8 +289,30 @@ def get_hierarchical_attributes(session, entity, attr_names, attr_defaults={}):
     return hier_values
 
 
+def get_task_short_name(task_type):
+    """
+        Returns short name (code) for 'task_type'. Short name stored in
+        metadata dictionary in project.config per each 'task_type'.
+        Could be used in anatomy, paths etc.
+        If no appropriate short name is found in mapping, 'task_type' is
+        returned back unchanged.
+
+        Currently stores data in:
+            'pype-config/presets/ftrack/project_defaults.json'
+    Args:
+        task_type: (string) - Animation | Modeling ...
+
+    Returns:
+        (string) - anim | model ...
+    """
+    presets = config.get_presets()['ftrack']['project_defaults']\
+                    .get("task_short_names")
+
+    return presets.get(task_type, task_type)
+
+
 class SyncEntitiesFactory:
-    dbcon = DbConnector()
+    dbcon = AvalonMongoDB()
 
     project_query = (
         "select full_name, name, custom_attributes"
@@ -322,12 +409,12 @@ class SyncEntitiesFactory:
             "*** Synchronization initialization started <{}>."
         ).format(project_full_name))
         # Check if `avalon_mongo_id` custom attribute exist or is accessible
-        if CustAttrIdKey not in ft_project["custom_attributes"]:
+        if CUST_ATTR_ID_KEY not in ft_project["custom_attributes"]:
             items = []
             items.append({
                 "type": "label",
                 "value": "# Can't access Custom attribute <{}>".format(
-                    CustAttrIdKey
+                    CUST_ATTR_ID_KEY
                 )
             })
             items.append({
@@ -363,7 +450,7 @@ class SyncEntitiesFactory:
             "custom_attributes": {},
             "hier_attrs": {},
             "avalon_attrs": {},
-            "tasks": []
+            "tasks": {}
         })
 
         for entity in all_project_entities:
@@ -374,7 +461,9 @@ class SyncEntitiesFactory:
                 continue
 
             elif entity_type_low == "task":
-                entities_dict[parent_id]["tasks"].append(entity["name"])
+                # enrich task info with additional metadata
+                task = {"type": entity["type"]["name"]}
+                entities_dict[parent_id]["tasks"][entity["name"]] = task
                 continue
 
             entity_id = entity["id"]
@@ -401,6 +490,13 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_ents_by_id(self):
+        """
+            Returns dictionary of avalon tracked entities (assets stored in
+            MongoDB) accessible by its '_id'
+            (mongo intenal ID - example ObjectId("5f48de5830a9467b34b69798"))
+        Returns:
+            (dictionary) - {"(_id)": whole entity asset}
+        """
         if self._avalon_ents_by_id is None:
             self._avalon_ents_by_id = {}
             for entity in self.avalon_entities:
@@ -410,6 +506,14 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_ents_by_ftrack_id(self):
+        """
+            Returns dictionary of Mongo ids of avalon tracked entities
+            (assets stored in MongoDB) accessible by its 'ftrackId'
+            (id from ftrack)
+            (example '431ee3f2-e91a-11ea-bfa4-92591a5b5e3e')
+            Returns:
+                (dictionary) - {"(ftrackId)": "_id"}
+        """
         if self._avalon_ents_by_ftrack_id is None:
             self._avalon_ents_by_ftrack_id = {}
             for entity in self.avalon_entities:
@@ -422,6 +526,13 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_ents_by_name(self):
+        """
+            Returns dictionary of Mongo ids of avalon tracked entities
+            (assets stored in MongoDB) accessible by its 'name'
+            (example 'Hero')
+            Returns:
+                (dictionary) - {"(name)": "_id"}
+        """
         if self._avalon_ents_by_name is None:
             self._avalon_ents_by_name = {}
             for entity in self.avalon_entities:
@@ -431,6 +542,15 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_ents_by_parent_id(self):
+        """
+            Returns dictionary of avalon tracked entities
+            (assets stored in MongoDB) accessible by its 'visualParent'
+            (example ObjectId("5f48de5830a9467b34b69798"))
+
+            Fills 'self._avalon_archived_ents' for performance
+            Returns:
+                (dictionary) - {"(_id)": whole entity}
+        """
         if self._avalon_ents_by_parent_id is None:
             self._avalon_ents_by_parent_id = collections.defaultdict(list)
             for entity in self.avalon_entities:
@@ -443,6 +563,14 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_archived_ents(self):
+        """
+            Returns list of archived assets from DB
+            (their "type" == 'archived_asset')
+
+            Fills 'self._avalon_archived_ents' for performance
+        Returns:
+            (list) of assets
+        """
         if self._avalon_archived_ents is None:
             self._avalon_archived_ents = [
                 ent for ent in self.dbcon.find({"type": "archived_asset"})
@@ -451,6 +579,14 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_archived_by_name(self):
+        """
+            Returns list of archived assets from DB
+            (their "type" == 'archived_asset')
+
+            Fills 'self._avalon_archived_by_name' for performance
+        Returns:
+            (dictionary of lists) of assets accessible by asset name
+        """
         if self._avalon_archived_by_name is None:
             self._avalon_archived_by_name = collections.defaultdict(list)
             for ent in self.avalon_archived_ents:
@@ -459,6 +595,14 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_archived_by_id(self):
+        """
+            Returns dictionary of archived assets from DB
+            (their "type" == 'archived_asset')
+
+            Fills 'self._avalon_archived_by_id' for performance
+        Returns:
+            (dictionary) of assets accessible by asset mongo _id
+        """
         if self._avalon_archived_by_id is None:
             self._avalon_archived_by_id = {
                 str(ent["_id"]): ent for ent in self.avalon_archived_ents
@@ -467,6 +611,15 @@ class SyncEntitiesFactory:
 
     @property
     def avalon_archived_by_parent_id(self):
+        """
+            Returns dictionary of archived assets from DB per their's parent
+            (their "type" == 'archived_asset')
+
+            Fills 'self._avalon_archived_by_parent_id' for performance
+        Returns:
+            (dictionary of lists) of assets accessible by asset parent
+                                     mongo _id
+        """
         if self._avalon_archived_by_parent_id is None:
             self._avalon_archived_by_parent_id = collections.defaultdict(list)
             for entity in self.avalon_archived_ents:
@@ -479,6 +632,14 @@ class SyncEntitiesFactory:
 
     @property
     def subsets_by_parent_id(self):
+        """
+            Returns dictionary of subsets from Mongo ("type": "subset")
+            grouped by their parent.
+
+            Fills 'self._subsets_by_parent_id' for performance
+        Returns:
+            (dictionary of lists)
+        """
         if self._subsets_by_parent_id is None:
             self._subsets_by_parent_id = collections.defaultdict(list)
             for subset in self.dbcon.find({"type": "subset"}):
@@ -500,6 +661,11 @@ class SyncEntitiesFactory:
 
     @property
     def all_ftrack_names(self):
+        """
+            Returns lists of names of all entities in Ftrack
+        Returns:
+            (list)
+        """
         return [
             ent_dict["name"] for ent_dict in self.entities_dict.values() if (
                 ent_dict.get("name")
@@ -519,7 +685,8 @@ class SyncEntitiesFactory:
             name = entity_dict["name"]
             entity_type = entity_dict["entity_type"]
             # Tasks must be checked too
-            for task_name in entity_dict["tasks"]:
+            for task in entity_dict["tasks"].items():
+                task_name, task = task
                 passed = task_names.get(task_name)
                 if passed is None:
                     passed = check_regex(
@@ -592,7 +759,7 @@ class SyncEntitiesFactory:
             for id in ids:
                 if id not in self.entities_dict:
                     continue
-                self.entities_dict[id]["tasks"].remove(name)
+                self.entities_dict[id]["tasks"].pop(name)
                 ent_path = self.get_ent_path(id)
                 self.log.warning(failed_regex_msg.format(
                     "/".join([ent_path, name])
@@ -687,7 +854,7 @@ class SyncEntitiesFactory:
     def set_cutom_attributes(self):
         self.log.debug("* Preparing custom attributes")
         # Get custom attributes and values
-        custom_attrs, hier_attrs = get_avalon_attr(self.session)
+        custom_attrs, hier_attrs = get_pype_attr(self.session)
         ent_types = self.session.query("select id, name from ObjectType").all()
         ent_types_by_name = {
             ent_type["name"]: ent_type["id"] for ent_type in ent_types
@@ -904,7 +1071,7 @@ class SyncEntitiesFactory:
                 project_values[key] = value
 
         for key in avalon_hier:
-            if key == CustAttrIdKey:
+            if key == CUST_ATTR_ID_KEY:
                 continue
             value = self.entities_dict[top_id]["avalon_attrs"][key]
             if value is not None:
@@ -999,22 +1166,26 @@ class SyncEntitiesFactory:
                     if not msg or not items:
                         continue
                     self.report_items["warning"][msg] = items
-
+                tasks = {}
+                for tt in task_types:
+                    tasks[tt["name"]] = {
+                        "short_name": get_task_short_name(tt["name"])
+                                        }
                 self.entities_dict[id]["final_entity"]["config"] = {
-                    "tasks": [{"name": tt["name"]} for tt in task_types],
+                    "tasks": tasks,
                     "apps": proj_apps
                 }
                 continue
 
             ent_path_items = [ent["name"] for ent in entity["link"]]
-            parents = ent_path_items[1:len(ent_path_items)-1:]
+            parents = ent_path_items[1:len(ent_path_items) - 1:]
             hierarchy = ""
             if len(parents) > 0:
                 hierarchy = os.path.sep.join(parents)
 
             data["parents"] = parents
             data["hierarchy"] = hierarchy
-            data["tasks"] = self.entities_dict[id].pop("tasks", [])
+            data["tasks"] = self.entities_dict[id].pop("tasks", {})
             self.entities_dict[id]["final_entity"]["data"] = data
             self.entities_dict[id]["final_entity"]["type"] = "asset"
 
@@ -1058,7 +1229,7 @@ class SyncEntitiesFactory:
         same_mongo_id = []
         all_mongo_ids = {}
         for ftrack_id, entity_dict in self.entities_dict.items():
-            mongo_id = entity_dict["avalon_attrs"].get(CustAttrIdKey)
+            mongo_id = entity_dict["avalon_attrs"].get(CUST_ATTR_ID_KEY)
             if not mongo_id:
                 continue
             if mongo_id in all_mongo_ids:
@@ -1089,7 +1260,7 @@ class SyncEntitiesFactory:
             entity_dict = self.entities_dict[ftrack_id]
             ent_path = self.get_ent_path(ftrack_id)
 
-            mongo_id = entity_dict["avalon_attrs"].get(CustAttrIdKey)
+            mongo_id = entity_dict["avalon_attrs"].get(CUST_ATTR_ID_KEY)
             av_ent_by_mongo_id = self.avalon_ents_by_id.get(mongo_id)
             if av_ent_by_mongo_id:
                 av_ent_ftrack_id = av_ent_by_mongo_id.get("data", {}).get(
@@ -1110,7 +1281,9 @@ class SyncEntitiesFactory:
                             continue
 
                         _entity_dict = self.entities_dict[_ftrack_id]
-                        _mongo_id = _entity_dict["avalon_attrs"][CustAttrIdKey]
+                        _mongo_id = (
+                            _entity_dict["avalon_attrs"][CUST_ATTR_ID_KEY]
+                        )
                         _av_ent_by_mongo_id = self.avalon_ents_by_id.get(
                             _mongo_id
                         )
@@ -1124,7 +1297,7 @@ class SyncEntitiesFactory:
                 if not is_right and not else_match_better:
                     entity = entity_dict["entity"]
                     ent_path_items = [ent["name"] for ent in entity["link"]]
-                    parents = ent_path_items[1:len(ent_path_items)-1:]
+                    parents = ent_path_items[1:len(ent_path_items) - 1:]
                     av_parents = av_ent_by_mongo_id["data"]["parents"]
                     if av_parents == parents:
                         is_right = True
@@ -1503,11 +1676,11 @@ class SyncEntitiesFactory:
 
             avalon_attrs = self.entities_dict[ftrack_id]["avalon_attrs"]
             if (
-                CustAttrIdKey not in avalon_attrs or
-                avalon_attrs[CustAttrIdKey] != avalon_id
+                CUST_ATTR_ID_KEY not in avalon_attrs or
+                avalon_attrs[CUST_ATTR_ID_KEY] != avalon_id
             ):
                 configuration_id = self.entities_dict[ftrack_id][
-                    "avalon_attrs_id"][CustAttrIdKey]
+                    "avalon_attrs_id"][CUST_ATTR_ID_KEY]
 
                 _entity_key = collections.OrderedDict({
                     "configuration_id": configuration_id,
@@ -1533,6 +1706,18 @@ class SyncEntitiesFactory:
                 self.updates[avalon_id] = self.merge_dicts(
                     data_changes,
                     self.updates[avalon_id]
+                )
+
+            # double check changes in tasks, some task could be renamed or
+            # deleted in Ftrack - not captured otherwise
+            final_entity = self.entities_dict[ftrack_id]["final_entity"]
+            if final_entity["data"].get("tasks", {}) != \
+                    avalon_entity["data"].get("tasks", {}):
+                if "data" not in self.updates[avalon_id]:
+                    self.updates[avalon_id]["data"] = {}
+
+                self.updates[avalon_id]["data"]["tasks"] = (
+                    final_entity["data"]["tasks"]
                 )
 
     def synchronize(self):
@@ -1587,7 +1772,7 @@ class SyncEntitiesFactory:
 
         # avalon_archived_by_id avalon_archived_by_name
         current_id = (
-            entity_dict["avalon_attrs"].get(CustAttrIdKey) or ""
+            entity_dict["avalon_attrs"].get(CUST_ATTR_ID_KEY) or ""
         ).strip()
         mongo_id = current_id
         name = entity_dict["name"]
@@ -1623,14 +1808,14 @@ class SyncEntitiesFactory:
         if current_id != new_id_str:
             # store mongo id to ftrack entity
             configuration_id = self.hier_cust_attr_ids_by_key.get(
-                CustAttrIdKey
+                CUST_ATTR_ID_KEY
             )
             if not configuration_id:
-                # NOTE this is for cases when CustAttrIdKey key is not
+                # NOTE this is for cases when CUST_ATTR_ID_KEY key is not
                 # hierarchical custom attribute but per entity type
                 configuration_id = self.entities_dict[ftrack_id][
                     "avalon_attrs_id"
-                ][CustAttrIdKey]
+                ][CUST_ATTR_ID_KEY]
 
             _entity_key = collections.OrderedDict({
                 "configuration_id": configuration_id,
@@ -1739,7 +1924,7 @@ class SyncEntitiesFactory:
         project_item = self.entities_dict[self.ft_project_id]["final_entity"]
         mongo_id = (
             self.entities_dict[self.ft_project_id]["avalon_attrs"].get(
-                CustAttrIdKey
+                CUST_ATTR_ID_KEY
             ) or ""
         ).strip()
 
@@ -1770,7 +1955,7 @@ class SyncEntitiesFactory:
 
         # store mongo id to ftrack entity
         entity = self.entities_dict[self.ft_project_id]["entity"]
-        entity["custom_attributes"][CustAttrIdKey] = str(new_id)
+        entity["custom_attributes"][CUST_ATTR_ID_KEY] = str(new_id)
 
     def _bubble_changeability(self, unchangeable_ids):
         unchangeable_queue = queue.Queue()
@@ -1882,12 +2067,17 @@ class SyncEntitiesFactory:
             self._changeability_by_mongo_id[mongo_id] = is_changeable
 
     def update_entities(self):
+        """
+            Runs changes converted to "$set" queries in bulk.
+        """
         mongo_changes_bulk = []
         for mongo_id, changes in self.updates.items():
-            filter = {"_id": ObjectId(mongo_id)}
-            change_data = from_dict_to_set(changes)
-            mongo_changes_bulk.append(UpdateOne(filter, change_data))
+            mongo_id = ObjectId(mongo_id)
+            is_project = mongo_id == self.avalon_project_id
+            change_data = from_dict_to_set(changes, is_project)
 
+            filter = {"_id": mongo_id}
+            mongo_changes_bulk.append(UpdateOne(filter, change_data))
         if not mongo_changes_bulk:
             # TODO LOG
             return
@@ -1962,6 +2152,18 @@ class SyncEntitiesFactory:
         )
 
     def compare_dict(self, dict_new, dict_old, _ignore_keys=[]):
+        """
+            Recursively compares and list changes between dictionaries
+            'dict_new' and 'dict_old'.
+            Keys in '_ignore_keys' are skipped and not compared.
+        Args:
+            dict_new (dictionary):
+            dict_old (dictionary):
+            _ignore_keys (list):
+
+        Returns:
+            (dictionary) of new or updated keys and theirs values
+        """
         # _ignore_keys may be used for keys nested dict like"data.visualParent"
         changes = {}
         ignore_keys = []
@@ -2003,6 +2205,18 @@ class SyncEntitiesFactory:
         return changes
 
     def merge_dicts(self, dict_new, dict_old):
+        """
+            Apply all new or updated keys from 'dict_new' on 'dict_old'.
+            Recursively.
+            Doesn't recognise that 'dict_new' doesn't contain some keys
+            anymore.
+        Args:
+            dict_new (dictionary): from Ftrack most likely
+            dict_old (dictionary): current in DB
+
+        Returns:
+            (dictionary) of applied changes to original dictionary
+        """
         for key, value in dict_new.items():
             if key not in dict_old:
                 dict_old[key] = value
@@ -2127,6 +2341,7 @@ class SyncEntitiesFactory:
             "name": _name,
             "parent": parent_entity
         })
+        self.session.commit()
 
         final_entity = {}
         for k, v in av_entity.items():
@@ -2151,7 +2366,7 @@ class SyncEntitiesFactory:
         if new_entity_id not in p_chilren:
             self.entities_dict[parent_id]["children"].append(new_entity_id)
 
-        cust_attr, hier_attrs = get_avalon_attr(self.session)
+        cust_attr, hier_attrs = get_pype_attr(self.session)
         for _attr in cust_attr:
             key = _attr["key"]
             if key not in av_entity["data"]:
@@ -2167,7 +2382,7 @@ class SyncEntitiesFactory:
             new_entity["custom_attributes"][key] = value
 
         av_entity_id = str(av_entity["_id"])
-        new_entity["custom_attributes"][CustAttrIdKey] = av_entity_id
+        new_entity["custom_attributes"][CUST_ATTR_ID_KEY] = av_entity_id
 
         self.ftrack_avalon_mapper[new_entity_id] = av_entity_id
         self.avalon_ftrack_mapper[av_entity_id] = new_entity_id

@@ -4,7 +4,8 @@
 import os
 import json
 import re
-from copy import copy
+from copy import copy, deepcopy
+import pype.api
 
 from avalon import api, io
 from avalon.vendor import requests, clique
@@ -40,40 +41,6 @@ def _get_script(path):
     assert path is not None, ("Cannot determine path")
 
     return str(path)
-
-
-def get_latest_version(asset_name, subset_name, family):
-    """Retrieve latest files concerning extendFrame feature."""
-    # Get asset
-    asset_name = io.find_one(
-        {"type": "asset", "name": asset_name}, projection={"name": True}
-    )
-
-    subset = io.find_one(
-        {"type": "subset", "name": subset_name, "parent": asset_name["_id"]},
-        projection={"_id": True, "name": True},
-    )
-
-    # Check if subsets actually exists (pre-run check)
-    assert subset, "No subsets found, please publish with `extendFrames` off"
-
-    # Get version
-    version_projection = {
-        "name": True,
-        "data.startFrame": True,
-        "data.endFrame": True,
-        "parent": True,
-    }
-
-    version = io.find_one(
-        {"type": "version", "parent": subset["_id"], "data.families": family},
-        projection=version_projection,
-        sort=[("name", -1)],
-    )
-
-    assert version, "No version found, this is a bug"
-
-    return version
 
 
 def get_resources(version, extension=None):
@@ -161,12 +128,14 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
     order = pyblish.api.IntegratorOrder + 0.2
     icon = "tractor"
 
-    hosts = ["fusion", "maya", "nuke", "celaction"]
+    hosts = ["fusion", "maya", "nuke", "celaction", "aftereffects"]
 
     families = ["render.farm", "prerener",
                 "renderlayer", "imagesequence", "vrayscene"]
 
-    aov_filter = {"maya": ["beauty"]}
+    aov_filter = {"maya": [r".+(?:\.|_)([Bb]eauty)(?:\.|_).*"],
+                  "aftereffects": [r".*"],  # for everything from AE
+                  "celaction": [r".*"]}
 
     enviro_filter = [
         "FTRACK_API_USER",
@@ -174,7 +143,8 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         "FTRACK_SERVER",
         "PYPE_METADATA_FILE",
         "AVALON_PROJECT",
-        "PYPE_LOG_NO_COLORS"
+        "PYPE_LOG_NO_COLORS",
+        "PYPE_USERNAME"
     ]
 
     # custom deadline atributes
@@ -183,6 +153,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
     deadline_pool_secondary = ""
     deadline_group = ""
     deadline_chunk_size = 1
+    deadline_priority = None
 
     # regex for finding frame number in string
     R_FRAME_NUMBER = re.compile(r'.+\.(?P<frame>[0-9]+)\..+')
@@ -193,7 +164,8 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         "slate": ["slateFrame"],
         "review": ["lutPath"],
         "render2d": ["bakeScriptPath", "bakeRenderPath",
-                     "bakeWriteNodeName", "version"]
+                     "bakeWriteNodeName", "version"],
+        "renderlayer": ["convertToScanline"]
     }
 
     # list of family names to transfer to new family if present
@@ -203,10 +175,14 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
     # script path for publish_filesequence.py
     publishing_script = None
 
+    # poor man exclusion
+    skip_integration_repre_list = []
+
     def _create_metadata_path(self, instance):
         ins_data = instance.data
         # Ensure output dir exists
-        output_dir = ins_data.get("publishRenderFolder", ins_data["outputDir"])
+        output_dir = ins_data.get(
+            "publishRenderMetadataFolder", ins_data["outputDir"])
 
         try:
             if not os.path.isdir(output_dir):
@@ -232,7 +208,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
 
         return (metadata_path, roothless_mtdt_p)
 
-    def _submit_deadline_post_job(self, instance, job):
+    def _submit_deadline_post_job(self, instance, job, instances):
         """Submit publish job to Deadline.
 
         Deadline specific code separated from :meth:`process` for sake of
@@ -244,7 +220,19 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         subset = data["subset"]
         job_name = "Publish - {subset}".format(subset=subset)
 
-        output_dir = instance.data["outputDir"]
+        # instance.data.get("subset") != instances[0]["subset"]
+        # 'Main' vs 'renderMain'
+        override_version = None
+        instance_version = instance.data.get("version")  # take this if exists
+        if instance_version != 1:
+            override_version = instance_version
+        output_dir = self._get_publish_folder(instance.context.data['anatomy'],
+                                              deepcopy(
+                                                instance.data["anatomyData"]),
+                                              instance.data.get("asset"),
+                                              instances[0]["subset"],
+                                              'render',
+                                              override_version)
 
         # Generate the payload for Deadline submission
         payload = {
@@ -252,7 +240,6 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
                 "Plugin": "Python",
                 "BatchName": job["Props"]["Batch"],
                 "Name": job_name,
-                "JobDependency0": job["_id"],
                 "UserName": job["Props"]["User"],
                 "Comment": instance.context.data.get("comment", ""),
 
@@ -276,15 +263,25 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
             "AuxFiles": [],
         }
 
+        # add assembly jobs as dependencies
+        if instance.data.get("tileRendering"):
+            self.log.info("Adding tile assembly jobs as dependencies...")
+            job_index = 0
+            for assembly_id in instance.data.get("assemblySubmissionJobs"):
+                payload["JobInfo"]["JobDependency{}".format(job_index)] = assembly_id  # noqa: E501
+                job_index += 1
+        else:
+            payload["JobInfo"]["JobDependency0"] = job["_id"]
+
         # Transfer the environment from the original job to this dependent
         # job so they use the same environment
         metadata_path, roothless_metadata_path = self._create_metadata_path(
             instance)
-
         environment = job["Props"].get("Env", {})
         environment["PYPE_METADATA_FILE"] = roothless_metadata_path
         environment["AVALON_PROJECT"] = io.Session["AVALON_PROJECT"]
         environment["PYPE_LOG_NO_COLORS"] = "1"
+        environment["PYPE_USERNAME"] = instance.context.data["user"]
         try:
             environment["PYPE_PYTHON_EXE"] = os.environ["PYPE_PYTHON_EXE"]
         except KeyError:
@@ -307,7 +304,6 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         payload["JobInfo"].pop("SecondaryPool", None)
 
         self.log.info("Submitting Deadline job ...")
-        # self.log.info(json.dumps(payload, indent=4, sort_keys=True))
 
         url = "{}/api/jobs".format(self.DEADLINE_REST_URL)
         response = requests.post(url, json=payload, timeout=10)
@@ -334,9 +330,8 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
 
         # get latest version of subset
         # this will stop if subset wasn't published yet
-        version = get_latest_version(
-            instance.data.get("asset"),
-            instance.data.get("subset"), "render")
+        version = pype.api.get_latest_version(instance.data.get("asset"),
+                                              instance.data.get("subset"))
         # get its files based on extension
         subset_resources = get_resources(version, representation.get("ext"))
         r_col, _ = clique.assemble(subset_resources)
@@ -409,15 +404,22 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         # go through aovs in expected files
         for aov, files in exp_files[0].items():
             cols, rem = clique.assemble(files)
-            # we shouldn't have any reminders
-            if rem:
-                self.log.warning(
-                    "skipping unexpected files found "
-                    "in sequence: {}".format(rem))
+            # we shouldn't have any reminders. And if we do, it should
+            # be just one item for single frame renders.
+            if not cols and rem:
+                assert len(rem) == 1, ("Found multiple non related files "
+                                       "to render, don't know what to do "
+                                       "with them.")
+                col = rem[0]
+                ext = os.path.splitext(col)[1].lstrip(".")
+            else:
+                # but we really expect only one collection.
+                # Nothing else make sense.
+                assert len(cols) == 1, "only one image sequence type is expected"  # noqa: E501
+                ext = cols[0].tail.lstrip(".")
+                col = list(cols[0])
 
-            # but we really expect only one collection, nothing else make sense
-            assert len(cols) == 1, "only one image sequence type is expected"
-
+            self.log.debug(col)
             # create subset name `familyTaskSubset_AOV`
             group_name = 'render{}{}{}{}'.format(
                 task[0].upper(), task[1:],
@@ -425,7 +427,11 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
 
             subset_name = '{}_{}'.format(group_name, aov)
 
-            staging = os.path.dirname(list(cols[0])[0])
+            if isinstance(col, (list, tuple)):
+                staging = os.path.dirname(col[0])
+            else:
+                staging = os.path.dirname(col)
+
             success, rootless_staging_dir = (
                 self.anatomy.find_root_template_from_path(staging)
             )
@@ -443,20 +449,27 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
 
             preview = False
             if app in self.aov_filter.keys():
-                if aov in self.aov_filter[app]:
-                    preview = True
+                for aov_pattern in self.aov_filter[app]:
+                    if re.match(aov_pattern,
+                                aov
+                                ):
+                        preview = True
+                        break
 
             new_instance = copy(instance_data)
             new_instance["subset"] = subset_name
             new_instance["subsetGroup"] = group_name
 
-            ext = cols[0].tail.lstrip(".")
-
             # create represenation
+            if isinstance(col, (list, tuple)):
+                files = [os.path.basename(f) for f in col]
+            else:
+                files = os.path.basename(col)
+
             rep = {
                 "name": ext,
                 "ext": ext,
-                "files": [os.path.basename(f) for f in list(cols[0])],
+                "files": files,
                 "frameStart": int(instance_data.get("frameStartHandle")),
                 "frameEnd": int(instance_data.get("frameEndHandle")),
                 # If expectedFile are absolute, we need only filenames
@@ -464,6 +477,15 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
                 "fps": new_instance.get("fps"),
                 "tags": ["review"] if preview else []
             }
+
+            # support conversion from tiled to scanline
+            if instance_data.get("convertToScanline"):
+                self.log.info("Adding scanline conversion.")
+                rep["tags"].append("toScanline")
+
+            # poor man exclusion
+            if ext in self.skip_integration_repre_list:
+                rep["tags"].append("delete")
 
             self._solve_families(new_instance, preview)
 
@@ -495,7 +517,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         """
         representations = []
         collections, remainders = clique.assemble(exp_files)
-        bake_render_path = instance.get("bakeRenderPath")
+        bake_render_path = instance.get("bakeRenderPath", [])
 
         # create representation for every collected sequence
         for collection in collections:
@@ -503,22 +525,18 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
             preview = False
             # if filtered aov name is found in filename, toggle it for
             # preview video rendering
-            for app in self.aov_filter:
+            for app in self.aov_filter.keys():
                 if os.environ.get("AVALON_APP", "") == app:
                     for aov in self.aov_filter[app]:
                         if re.match(
-                            r".+(?:\.|_)({})(?:\.|_).*".format(aov),
+                            aov,
                             list(collection)[0]
                         ):
                             preview = True
                             break
-                break
 
             if bake_render_path:
                 preview = False
-
-            if "celaction" in pyblish.api.registered_hosts():
-                preview = True
 
             staging = os.path.dirname(list(collection)[0])
             success, rootless_staging_dir = (
@@ -541,11 +559,20 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
                 # If expectedFile are absolute, we need only filenames
                 "stagingDir": staging,
                 "fps": instance.get("fps"),
-                "tags": ["review", "preview"] if preview else [],
+                "tags": ["review"] if preview else [],
             }
 
+            # poor man exclusion
+            if ext in self.skip_integration_repre_list:
+                rep["tags"].append("delete")
+
             if instance.get("multipartExr", False):
-                rep["tags"].append["multipartExr"]
+                rep["tags"].append("multipartExr")
+
+            # support conversion from tiled to scanline
+            if instance.get("convertToScanline"):
+                self.log.info("Adding scanline conversion.")
+                rep["tags"].append("toScanline")
 
             representations.append(rep)
 
@@ -613,25 +640,6 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
 
         if hasattr(instance, "_log"):
             data['_log'] = instance._log
-        render_job = data.pop("deadlineSubmissionJob", None)
-        submission_type = "deadline"
-        if not render_job:
-            # No deadline job. Try Muster: musterSubmissionJob
-            render_job = data.pop("musterSubmissionJob", None)
-            submission_type = "muster"
-            assert render_job, (
-                "Can't continue without valid Deadline "
-                "or Muster submission prior to this "
-                "plug-in."
-            )
-
-        if submission_type == "deadline":
-            self.DEADLINE_REST_URL = os.environ.get(
-                "DEADLINE_REST_URL", "http://localhost:8082"
-            )
-            assert self.DEADLINE_REST_URL, "Requires DEADLINE_REST_URL"
-
-            self._submit_deadline_post_job(instance, render_job)
 
         asset = data.get("asset") or api.Session["AVALON_ASSET"]
         subset = data.get("subset")
@@ -702,13 +710,19 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
             "pixelAspect": data.get("pixelAspect", 1),
             "resolutionWidth": data.get("resolutionWidth", 1920),
             "resolutionHeight": data.get("resolutionHeight", 1080),
-            "multipartExr": data.get("multipartExr", False)
+            "multipartExr": data.get("multipartExr", False),
+            "jobBatchName": data.get("jobBatchName", "")
         }
 
         if "prerender" in instance.data["families"]:
             instance_skeleton_data.update({
                 "family": "prerender",
                 "families": []})
+
+        # skip locking version if we are creating v01
+        instance_version = instance.data.get("version")  # take this if exists
+        if instance_version != 1:
+            instance_skeleton_data["version"] = instance_version
 
         # transfer specific families from original instance to new render
         for item in self.families_transfer:
@@ -846,6 +860,70 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
                         at.get("subset"), at.get("version")))
             instances = new_instances
 
+        r''' SUBMiT PUBLiSH JOB 2 D34DLiN3
+          ____
+        '     '            .---.  .---. .--. .---. .--..--..--..--. .---.
+        |     |   --= \   |  .  \/   _|/    \|  .  \  ||  ||   \  |/   _|
+        | JOB |   --= /   |  |  ||  __|  ..  |  |  |  |;_ ||  \   ||  __|
+        |     |           |____./ \.__|._||_.|___./|_____|||__|\__|\.___|
+        ._____.
+
+        '''
+
+        render_job = None
+        if instance.data.get("toBeRenderedOn") == "deadline":
+            render_job = data.pop("deadlineSubmissionJob", None)
+            submission_type = "deadline"
+
+        if instance.data.get("toBeRenderedOn") == "muster":
+            render_job = data.pop("musterSubmissionJob", None)
+            submission_type = "muster"
+
+        if not render_job and instance.data.get("tileRendering") is False:
+            raise AssertionError(("Cannot continue without valid Deadline "
+                                  "or Muster submission."))
+
+        if not render_job:
+            import getpass
+
+            render_job = {}
+            self.log.info("Faking job data ...")
+            render_job["Props"] = {}
+            # Render job doesn't exist because we do not have prior submission.
+            # We still use data from it so lets fake it.
+            #
+            # Batch name reflect original scene name
+
+            if instance.data.get("assemblySubmissionJobs"):
+                render_job["Props"]["Batch"] = instance.data.get(
+                    "jobBatchName")
+            else:
+                render_job["Props"]["Batch"] = os.path.splitext(
+                    os.path.basename(context.data.get("currentFile")))[0]
+            # User is deadline user
+            render_job["Props"]["User"] = context.data.get(
+                "deadlineUser", getpass.getuser())
+            # Priority is now not handled at all
+
+            if self.deadline_priority:
+                render_job["Props"]["Pri"] = self.deadline_priority
+            else:
+                render_job["Props"]["Pri"] = instance.data.get("priority")
+
+            render_job["Props"]["Env"] = {
+                "FTRACK_API_USER": os.environ.get("FTRACK_API_USER"),
+                "FTRACK_API_KEY": os.environ.get("FTRACK_API_KEY"),
+                "FTRACK_SERVER": os.environ.get("FTRACK_SERVER"),
+            }
+
+        if submission_type == "deadline":
+            self.DEADLINE_REST_URL = os.environ.get(
+                "DEADLINE_REST_URL", "http://localhost:8082"
+            )
+            assert self.DEADLINE_REST_URL, "Requires DEADLINE_REST_URL"
+
+            self._submit_deadline_post_job(instance, render_job, instances)
+
         # publish job file
         publish_job = {
             "asset": asset,
@@ -857,7 +935,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
             "version": context.data["version"],  # this is workfile version
             "intent": context.data.get("intent"),
             "comment": context.data.get("comment"),
-            "job": render_job,
+            "job": render_job or None,
             "session": api.Session.copy(),
             "instances": instances
         }
@@ -902,11 +980,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         prev_start = None
         prev_end = None
 
-        version = get_latest_version(
-            asset_name=asset,
-            subset_name=subset,
-            family='render'
-        )
+        version = pype.api.get_latest_version(asset_name=asset,
+                                              subset_name=subset
+                                              )
 
         # Set prev start / end frames for comparison
         if not prev_start and not prev_end:
@@ -922,3 +998,60 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin):
         )
 
         return updated_start, updated_end
+
+    def _get_publish_folder(self, anatomy, template_data,
+                            asset, subset,
+                            family='render', version=None):
+        """
+            Extracted logic to pre-calculate real publish folder, which is
+            calculated in IntegrateNew inside of Deadline process.
+            This should match logic in:
+                'collect_anatomy_instance_data' - to
+                    get correct anatomy, family, version for subset and
+                'collect_resources_path'
+                    get publish_path
+
+        Args:
+            anatomy (pypeapp.lib.anatomy.Anatomy):
+            template_data (dict): pre-calculated collected data for process
+            asset (string): asset name
+            subset (string): subset name (actually group name of subset)
+            family (string): for current deadline process it's always 'render'
+                TODO - for generic use family needs to be dynamically
+                    calculated like IntegrateNew does
+            version (int): override version from instance if exists
+
+        Returns:
+            (string): publish folder where rendered and published files will
+                be stored
+                based on 'publish' template
+        """
+        if not version:
+            version = pype.api.get_latest_version(asset, subset)
+            if version:
+                version = int(version["name"]) + 1
+            else:
+                version = 1
+
+        template_data["subset"] = subset
+        template_data["family"] = "render"
+        template_data["version"] = version
+
+        anatomy_filled = anatomy.format(template_data)
+
+        if "folder" in anatomy.templates["render"]:
+            publish_folder = anatomy_filled["render"]["folder"]
+        else:
+            # solve deprecated situation when `folder` key is not underneath
+            # `publish` anatomy
+            project_name = api.Session["AVALON_PROJECT"]
+            self.log.warning((
+                "Deprecation warning: Anatomy does not have set `folder`"
+                " key underneath `publish` (in global of for project `{}`)."
+            ).format(project_name))
+
+            file_path = anatomy_filled["render"]["path"]
+            # Directory
+            publish_folder = os.path.dirname(file_path)
+
+        return publish_folder

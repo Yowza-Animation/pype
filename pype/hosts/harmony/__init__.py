@@ -1,60 +1,47 @@
+# -*- coding: utf-8 -*-
+"""Pype Harmony Host implementation."""
 import os
-import sys
+from pathlib import Path
 
 from avalon import api, io, harmony
-from avalon.vendor import Qt
 import avalon.tools.sceneinventory
+
 import pyblish.api
+
 from pype import lib
+from pype.api import config
 
 
 def set_scene_settings(settings):
-    func = """function func(args)
-    {
-        if (args[0]["fps"])
-        {
-            scene.setFrameRate(args[0]["fps"]);
-        }
-        if (args[0]["frameStart"] && args[0]["frameEnd"])
-        {
-            var duration = args[0]["frameEnd"] - args[0]["frameStart"] + 1
-            if (frame.numberOf() > duration)
-            {
-                frame.remove(
-                    duration, frame.numberOf() - duration
-                );
-            }
-            if (frame.numberOf() < duration)
-            {
-                frame.insert(
-                    duration, duration - frame.numberOf()
-                );
-            }
+    """Set correct scene settings in Harmony.
 
-            scene.setStartFrame(1);
-            scene.setStopFrame(duration);
-        }
-        if (args[0]["resolutionWidth"] && args[0]["resolutionHeight"])
-        {
-            scene.setDefaultResolution(
-                args[0]["resolutionWidth"], args[0]["resolutionHeight"], 41.112
-            )
-        }
-    }
-    func
+    Args:
+        settings (dict): Scene settings.
+
+    Returns:
+        dict: Dictionary of settings to set.
+
     """
-    harmony.send({"function": func, "args": [settings]})
+    harmony.send(
+        {"function": "PypeHarmony.setSceneSettings", "args": settings})
 
 
 def get_asset_settings():
+    """Get settings on current asset from database.
+
+    Returns:
+        dict: Scene data.
+
+    """
     asset_data = lib.get_asset()["data"]
     fps = asset_data.get("fps")
     frame_start = asset_data.get("frameStart")
     frame_end = asset_data.get("frameEnd")
     resolution_width = asset_data.get("resolutionWidth")
     resolution_height = asset_data.get("resolutionHeight")
+    entity_type = asset_data.get("entityType")
 
-    return {
+    scene_data = {
         "fps": fps,
         "frameStart": frame_start,
         "frameEnd": frame_end,
@@ -62,8 +49,28 @@ def get_asset_settings():
         "resolutionHeight": resolution_height
     }
 
+    try:
+        skip_resolution_check = \
+            config.get_presets()["harmony"]["general"]["skip_resolution_check"]
+        skip_timelines_check = \
+            config.get_presets()["harmony"]["general"]["skip_timelines_check"]
+    except KeyError:
+        skip_resolution_check = []
+        skip_timelines_check = []
+
+    if os.getenv('AVALON_TASK') in skip_resolution_check:
+        scene_data.pop("resolutionWidth")
+        scene_data.pop("resolutionHeight")
+
+    if entity_type in skip_timelines_check:
+        scene_data.pop('frameStart', None)
+        scene_data.pop('frameEnd', None)
+
+    return scene_data
+
 
 def ensure_scene_settings():
+    """Validate if Harmony scene has valid settings."""
     settings = get_asset_settings()
 
     invalid_settings = []
@@ -75,25 +82,23 @@ def ensure_scene_settings():
             valid_settings[key] = value
 
     # Warn about missing attributes.
-    print("Starting new QApplication..")
-    app = Qt.QtWidgets.QApplication(sys.argv)
-
-    message_box = Qt.QtWidgets.QMessageBox()
-    message_box.setIcon(Qt.QtWidgets.QMessageBox.Warning)
-    msg = "Missing attributes:"
     if invalid_settings:
+        msg = "Missing attributes:"
         for item in invalid_settings:
             msg += f"\n{item}"
-        message_box.setText(msg)
-        message_box.exec_()
 
-    # Garbage collect QApplication.
-    del app
+        harmony.send(
+            {"function": "PypeHarmony.message", "args": msg})
 
     set_scene_settings(valid_settings)
 
 
 def check_inventory():
+    """Check is scene contains outdated containers.
+
+    If it does it will colorize outdated nodes and display warning message
+    in Harmony.
+    """
     if not lib.any_outdated():
         return
 
@@ -112,78 +117,51 @@ def check_inventory():
             outdated_containers.append(container)
 
     # Colour nodes.
-    func = """function func(args){
-        for( var i =0; i <= args[0].length - 1; ++i)
-        {
-            var red_color = new ColorRGBA(255, 0, 0, 255);
-            node.setColor(args[0][i], red_color);
-        }
-    }
-    func
-    """
     outdated_nodes = []
     for container in outdated_containers:
         if container["loader"] == "ImageSequenceLoader":
             outdated_nodes.append(
                 harmony.find_node_by_name(container["name"], "READ")
             )
-    harmony.send({"function": func, "args": [outdated_nodes]})
+    harmony.send({"function": "PypeHarmony.setColor", "args": outdated_nodes})
 
     # Warn about outdated containers.
-    print("Starting new QApplication..")
-    app = Qt.QtWidgets.QApplication(sys.argv)
-
-    message_box = Qt.QtWidgets.QMessageBox()
-    message_box.setIcon(Qt.QtWidgets.QMessageBox.Warning)
     msg = "There are outdated containers in the scene."
-    message_box.setText(msg)
-    message_box.exec_()
-
-    # Garbage collect QApplication.
-    del app
+    harmony.send({"function": "PypeHarmony.message", "args": msg})
 
 
 def application_launch():
-    ensure_scene_settings()
-    check_inventory()
+    """Event that is executed after Harmony is launched."""
+    # FIXME: This is breaking server <-> client communication.
+    # It is now moved so it it manually called.
+    # ensure_scene_settings()
+    # check_inventory()
+    pype_harmony_path = Path(__file__).parent / "js" / "PypeHarmony.js"
+    pype_harmony_js = pype_harmony_path.read_text()
+
+    # go through js/creators, loaders and publish folders and load all scripts
+    script = ""
+    for item in ["creators", "loaders", "publish"]:
+        dir_to_scan = Path(__file__).parent / "js" / item
+        for child in dir_to_scan.iterdir():
+            script += child.read_text()
+
+    # send scripts to Harmony
+    harmony.send({"script": pype_harmony_js})
+    harmony.send({"script": script})
 
 
 def export_template(backdrops, nodes, filepath):
-    func = """function func(args)
-    {
-        // Add an extra node just so a new group can be created.
-        var temp_node = node.add("Top", "temp_note", "NOTE", 0, 0, 0);
-        var template_group = node.createGroup(temp_node, "temp_group");
-        node.deleteNode( template_group + "/temp_note" );
+    """Export Template to file.
 
-        // This will make Node View to focus on the new group.
-        selection.clearSelection();
-        selection.addNodeToSelection(template_group);
-        Action.perform("onActionEnterGroup()", "Node View");
+    Args:
+        backdrops (list): List of backdrops to export.
+        nodes (list): List of nodes to export.
+        filepath (str): Path where to save Template.
 
-        // Recreate backdrops in group.
-        for (var i = 0 ; i < args[0].length; i++)
-        {
-            Backdrop.addBackdrop(template_group, args[0][i]);
-        };
-
-        // Copy-paste the selected nodes into the new group.
-        var drag_object = copyPaste.copy(args[1], 1, frame.numberOf, "");
-        copyPaste.pasteNewNodes(drag_object, template_group, "");
-
-        // Select all nodes within group and export as template.
-        Action.perform( "selectAll()", "Node View" );
-        copyPaste.createTemplateFromSelection(args[2], args[3]);
-
-        // Unfocus the group in Node view, delete all nodes and backdrops
-        // created during the process.
-        Action.perform("onActionUpToParent()", "Node View");
-        node.deleteNode(template_group, true, true);
-    }
-    func
     """
     harmony.send({
-        "function": func,
+        "function": "PypeHarmony.exportTemplate",
         "args": [
             backdrops,
             nodes,
@@ -194,7 +172,8 @@ def export_template(backdrops, nodes, filepath):
 
 
 def install():
-    print("Installing Pype config...")
+    """Install Pype as host config."""
+    print("Installing Pype config ...")
 
     plugins_directory = os.path.join(
         os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
@@ -222,12 +201,12 @@ def install():
 
 def on_pyblish_instance_toggled(instance, old_value, new_value):
     """Toggle node enabling on instance toggles."""
-    func = """function func(args)
-    {
-        node.setEnable(args[0], args[1])
-    }
-    func
-    """
-    harmony.send(
-        {"function": func, "args": [instance[0], new_value]}
-    )
+    try:
+        harmony.send(
+            {
+                "function": "PypeHarmony.toggleInstance",
+                "args": [instance[0], new_value]
+            }
+        )
+    except IndexError:
+        print(f"Instance '{instance}' is missing node")

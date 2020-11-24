@@ -13,6 +13,7 @@ class CollectReview(pyblish.api.InstancePlugin):
     order = pyblish.api.CollectorOrder + 0.3
     label = 'Collect Review Data'
     families = ["review"]
+    legacy = True
 
     def process(self, instance):
 
@@ -42,37 +43,54 @@ class CollectReview(pyblish.api.InstancePlugin):
             i = 0
             for inst in instance.context:
 
-                self.log.debug('processing {}'.format(inst))
-                self.log.debug('processing2 {}'.format(instance.context[i]))
+                self.log.debug('filtering {}'.format(inst))
                 data = instance.context[i].data
 
-                if inst.name == reviewable_subset[0]:
-                    if data.get('families'):
-                        data['families'].append('review')
-                    else:
-                        data['families'] = ['review']
-                    self.log.debug('adding review family to {}'.format(reviewable_subset))
-                    data['review_camera'] = camera
-                    # data["publish"] = False
-                    data['frameStartFtrack'] = instance.data["frameStartHandle"]
-                    data['frameEndFtrack'] = instance.data["frameEndHandle"]
-                    data['frameStartHandle'] = instance.data["frameStartHandle"]
-                    data['frameEndHandle'] = instance.data["frameEndHandle"]
-                    data["frameStart"] = instance.data["frameStart"]
-                    data["frameEnd"] = instance.data["frameEnd"]
-                    data['handles'] = instance.data.get('handles', None)
-                    data['step'] = instance.data['step']
-                    data['fps'] = instance.data['fps']
-                    cmds.setAttr(str(instance) + '.active', 1)
-                    self.log.debug('data {}'.format(instance.context[i].data))
-                    instance.context[i].data.update(data)
-                    instance.data['remove'] = True
-                i += 1
+                if inst.name != reviewable_subset[0]:
+                    self.log.debug('subset name does not match {}'.format(
+                        reviewable_subset[0]))
+                    i += 1
+                    continue
+
+                if data.get('families'):
+                    data['families'].append('review')
+                else:
+                    data['families'] = ['review']
+                self.log.debug('adding review family to {}'.format(
+                    reviewable_subset))
+                data['review_camera'] = camera
+                # data["publish"] = False
+                data['frameStartFtrack'] = instance.data["frameStartHandle"]
+                data['frameEndFtrack'] = instance.data["frameEndHandle"]
+                data['frameStartHandle'] = instance.data["frameStartHandle"]
+                data['frameEndHandle'] = instance.data["frameEndHandle"]
+                data["frameStart"] = instance.data["frameStart"]
+                data["frameEnd"] = instance.data["frameEnd"]
+                data['handles'] = instance.data.get('handles', None)
+                data['step'] = instance.data['step']
+                data['fps'] = instance.data['fps']
+                data["isolate"] = instance.data["isolate"]
+                cmds.setAttr(str(instance) + '.active', 1)
+                self.log.debug('data {}'.format(instance.context[i].data))
+                instance.context[i].data.update(data)
+                instance.data['remove'] = True
+                self.log.debug('isntance data {}'.format(instance.data))
         else:
-            instance.data['subset'] = task + 'Review'
+            if self.legacy:
+                instance.data['subset'] = task + 'Review'
+            else:
+                subset = "{}{}{}".format(
+                    task,
+                    instance.data["subset"][0].upper(),
+                    instance.data["subset"][1:]
+                )
+                instance.data['subset'] = subset
+
             instance.data['review_camera'] = camera
-            instance.data['frameStartFtrack'] = instance.data["frameStartHandle"]
-            instance.data['frameEndFtrack'] = instance.data["frameEndHandle"]
+            instance.data['frameStartFtrack'] = \
+                instance.data["frameStartHandle"]
+            instance.data['frameEndFtrack'] = \
+                instance.data["frameEndHandle"]
 
             # make ftrack publishable
             instance.data["families"] = ['ftrack']
