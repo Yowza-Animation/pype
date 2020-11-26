@@ -1,9 +1,18 @@
-import os
 import json
+import os
+import uuid
 
-from avalon import api, harmony
 import pype.lib
 
+from avalon import api, harmony
+
+copy_files = """function copyFile(srcFilename, dstFilename)
+{
+    var srcFile = new PermanentFile(srcFilename);
+    var dstFile = new PermanentFile(dstFilename);
+    srcFile.copy(dstFile);
+}
+"""
 
 import_files = """var PNGTransparencyMode = 1; //Premultiplied wih Black
 var TGATransparencyMode = 0; //Premultiplied wih Black
@@ -227,6 +236,12 @@ class BackgroundLoader(api.Loader):
 
     def load(self, context, name=None, namespace=None, data=None):
 
+        # Create a uuid to be added to the container node's attrs
+        group_id = "{}".format(uuid.uuid4())
+        # Add this container's uuid to the scene data
+        data["uuid"] = group_id
+
+
         with open(self.fname) as json_file:
             data = json.load(json_file)
 
@@ -259,13 +274,16 @@ class BackgroundLoader(api.Loader):
             )["result"]
             container_nodes.append(read_node)
 
+
+
         return harmony.containerise(
-            subset_name,
-            namespace,
-            subset_name,
-            context,
-            self.__class__.__name__,
-            nodes=container_nodes
+            name=subset_name,
+            namespace=namespace,
+            node=subset_name,
+            context=context,
+            loader=self.__class__.__name__,
+            suffix=None,
+            data=data
         )
 
     def update(self, container, representation):
@@ -348,7 +366,6 @@ class BackgroundLoader(api.Loader):
 
     def remove(self, container):
         for node in container.get("nodes"):
-
             func = """function deleteNode(_node)
             {
                 node.deleteNode(_node, true, true);

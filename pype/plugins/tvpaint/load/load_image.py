@@ -1,4 +1,3 @@
-from avalon import api
 from avalon.vendor import qargparse
 from avalon.tvpaint import lib, pipeline
 
@@ -80,4 +79,4 @@ class ImportImage(pipeline.Loader):
             layer_name,
             load_options_str
         )
-        return CommunicatorWrapper.execute_george_through_file(george_script)
+        return lib.execute_george_through_file(george_script)
