@@ -25,7 +25,7 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         var backdrops = args[0];
         var _nodes = args[1].map(function (x) { return doc.$node(x) });
         var tpl_path = args[2];
-        var tpl_name = args[2];
+        var tpl_name = args[3];
 
         var _refNode = doc.$node(_nodes[0])
         var currentGroup = _refNode.group
