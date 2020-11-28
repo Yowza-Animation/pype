@@ -10,7 +10,8 @@ import pyblish.api
 
 from pype import lib
 from pype.api import config
-
+import logging
+log = logging.getLogger("pype.hosts.harmony")
 
 def set_scene_settings(settings):
     """Set correct scene settings in Harmony.
@@ -72,7 +73,7 @@ def get_asset_settings():
 def ensure_scene_settings():
     """Validate if Harmony scene has valid settings."""
     settings = get_asset_settings()
-
+    log.info("!!!!!!!!!!!!!")
     invalid_settings = []
     valid_settings = {}
     for key, value in settings.items():
