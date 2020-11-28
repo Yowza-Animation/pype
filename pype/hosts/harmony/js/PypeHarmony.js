@@ -33,6 +33,7 @@ PypeHarmony.message = function(message) {
  * @param {obj} settings  Scene settings.
  */
 PypeHarmony.setSceneSettings = function(settings) {
+    MessageLog.trace("Setting...")
     if (settings.fps) {
         scene.setFrameRate(settings.fps);
     }
