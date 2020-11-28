@@ -5,10 +5,10 @@ from pype.modules.ftrack.lib import ServerAction
 
 
 class PushFrameValuesToTaskAction(ServerAction):
-    """Action for testing purpose or as base for new actions."""
+    """Action for Pushing Frame Values to Task """
 
     # Ignore event handler by default
-    ignore_me = True
+    ignore_me = False
 
     identifier = "admin.push_frame_values_to_task"
     label = "Pype Admin"
