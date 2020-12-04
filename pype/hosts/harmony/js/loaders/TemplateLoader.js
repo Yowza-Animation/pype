@@ -172,11 +172,9 @@ TemplateLoader.prototype.replaceNode = function (args) {
                 }
             }
 
-            if (!success)
-            {
+            if (!success) {
                 $.alert('Failed to connect ' + inNode + ' : ' +
                     inPort + ' <- ' + srcNode + ' : ' + outPort);
-                $.endUndo();
             }
         }
     }
@@ -200,29 +198,66 @@ TemplateLoader.prototype.replaceNode = function (args) {
         srcNode.linkPalette(palettes[i]);
     }
 
+    // Remove the old container from the scene data
+    var metadata = scene.metadata('avalon');
+    if (metadata) {
+        metadata = JSON.parse(metadata.value);
+        delete metadata[dstNode.path]
+        scene.setMetadata({
+            'name': 'avalon',
+            'type': 'string',
+            'creator': 'Avalon',
+            'version': '1.0',
+            'value': JSON.stringify(metadata)
+        });
+    };
+
+    PypeHarmony.setColor([srcNode.path], [0, 255, 0, 255])
+    PypeHarmony.setColor([dstNode.path], [255, 0, 0, 255])
+
     // Delete the original node
     dstNode.remove(false, false);
-
-    if (rename_container)
-    {
+    if (rename_container) {
         srcNode.name = dstNodeName;
     }
-
     $.endUndo();
     return true;
 };
 
 
 TemplateLoader.prototype.askForColumnsUpdate = function () {
-    // Ask user if they want to also update columns and
-    // linked attributes here
-    return ($.confirm(
-        'Choose "Yes" to reconnect all \n' +
-        'ins/outs, attributes, and columns? \n' +
-        'If you choose "No", the Version will only be loaded.',
-        'Update & Replace?',
-        'Yes',
-        'No'));
+    // Ask user if they want to also update columns and linked attributes here
+
+    msg = "Choose \"Yes\" to reconnect all \n" +
+        "ins/outs, attributes, and columns? \n" +
+        "If you choose \"No\", the Version will only be loaded.";
+
+    title = "Update & Replace";
+
+	msgBox = new QMessageBox(
+		QMessageBox.question,
+		title,
+		msg,
+		QMessageBox.Yes
+	);
+
+	msgBox.addButton(QMessageBox.No);
+
+	msgBox.setWindowFlags(
+		msgBox.windowFlags() | Qt.WindowStaysOnTopHint
+	);
+
+	screen_size = new QDesktopWidget().screenGeometry(0);
+
+	msgBox.move(
+		screen_size.width()/2 +150,
+		screen_size.height()/2 -900
+	);
+
+	if(msgBox.exec() == QMessageBox.Yes){
+		return true;
+	};
+	return false;
 };
 
 // add self to Pype Loaders

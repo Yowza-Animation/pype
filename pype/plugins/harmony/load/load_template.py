@@ -6,6 +6,7 @@ import tempfile
 import pype.lib
 import uuid
 import zipfile
+import shutil
 
 from avalon import api, harmony
 from avalon.pipeline import get_representation_context
@@ -66,7 +67,7 @@ class TemplateLoader(api.Loader):
             return
 
         # Cleanup the temp directory
-        # shutil.rmtree(temp_dir)
+        shutil.rmtree(temp_dir)
 
         # We must validate the group_node
         return harmony.containerise(
@@ -91,7 +92,7 @@ class TemplateLoader(api.Loader):
         """
 
         container_to_update = container["objectName"]
-
+        container_to_update_id = str(container["data"]["uuid"])
         self_name = self.__class__.__name__
         context = get_representation_context(representation)
 
@@ -100,7 +101,7 @@ class TemplateLoader(api.Loader):
         else:
             self._set_red(container_to_update)
 
-        load_success = harmony.send(
+        ask_for_columns_update = harmony.send(
             {
                 "function": f"PypeHarmony.Loaders.{self_name}."
                             "askForColumnsUpdate",
@@ -108,20 +109,16 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
-        if not load_success:
-            return
-
         updated_container = self.load(context,
                                       container["name"],
                                       container.get("namespace"),
                                       container.get("data")
                                       )
 
-        print("*" * 80)
-
-        print(container_to_update)
-        print(updated_container)
-        print("*" * 80)
+        if not ask_for_columns_update:
+            self._set_red(container_to_update)
+            self._set_green(updated_container)
+            return
 
         success = harmony.send(
             {
@@ -129,10 +126,6 @@ class TemplateLoader(api.Loader):
                 "args": [updated_container, container_to_update, rename_container]
             }
         )["result"]
-
-        if success:
-            # now remove old the container from scene data
-            harmony.remove(container_to_update)
 
 
     def remove(self, container):
@@ -142,10 +135,15 @@ class TemplateLoader(api.Loader):
             container (dict): container definition.
 
         """
-        node = harmony.find_node_by_name(container["name"], "GROUP")
+
         harmony.send(
-            {"function": "PypeHarmony.deleteNode", "args": [node]}
+            {
+                "function": "PypeHarmony.deleteNode",
+                "args": [container["objectName"]]
+             }
         )
+
+        harmony.imprint(container["objectName"], {}, remove=True)
 
     def switch(self, container, representation):
         """Switch representation containers."""

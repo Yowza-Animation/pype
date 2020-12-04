@@ -46,26 +46,24 @@ class ImageSequenceLoader(api.Loader):
         subset = context["subset"]["name"]
 
         group_id = str(uuid.uuid4())
-        read_node = harmony.send(
+
+        data["uuid"] = group_id
+
+        container_read = harmony.send(
             {
-                "function": f"PypeHarmony.Loaders.{self_name}.importFiles",  # noqa: E501
-                "args": [
-                    files,
-                    asset,
-                    subset,
-                    1,
-                    group_id
-                ]
+                "function": f"PypeHarmony.Loaders.{self_name}.importFiles",
+                "args": [files, asset, subset, 1, group_id]
             }
         )["result"]
 
         return harmony.containerise(
-            f"{asset}_{subset}",
-            namespace,
-            read_node,
-            context,
-            self_name,
-            nodes=[read_node]
+            name=name,
+            namespace=container_read,
+            node=container_read,
+            context=context,
+            loader=self_name,
+            suffix=None,
+            data=data
         )
 
     def update(self, container, representation):
@@ -77,7 +75,7 @@ class ImageSequenceLoader(api.Loader):
 
         """
         self_name = self.__class__.__name__
-        node = harmony.find_node_by_name(container["name"], "READ")
+        node = container["objectName"]
 
         path = api.get_representation_path(representation)
         collections, remainder = clique.assemble(
@@ -130,11 +128,13 @@ class ImageSequenceLoader(api.Loader):
             container (dict): Container data.
 
         """
-        node = harmony.find_node_by_name(container["name"], "READ")
+
         harmony.send(
-            {"function": "PypeHarmony.deleteNode", "args": [node]}
+            {"function": "PypeHarmony.deleteNode",
+             "args": [container["objectName"]]}
         )
-        harmony.imprint(node, {}, remove=True)
+
+        harmony.imprint(container["objectName"], {}, remove=True)
 
     def switch(self, container, representation):
         """Switch loaded representations."""
