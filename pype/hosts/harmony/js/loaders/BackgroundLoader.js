@@ -24,22 +24,6 @@ var BackgroundLoader = function() {
 };
 
 
-function getUniqueColumnName( column_prefix )
-{
-    var suffix = 0;
-    // finds if unique name for a column
-    var column_name = column_prefix;
-    while(suffix < 2000)
-    {
-        if(!column.type(column_name))
-        break;
-
-        suffix = suffix + 1;
-        column_name = column_prefix + "_" + suffix;
-    }
-    return column_name;
-}
-
 
 function import_files(args)
 {
@@ -79,7 +63,7 @@ function import_files(args)
         return null; // no read to add.
     }
 
-    var uniqueColumnName = getUniqueColumnName(name);
+    var uniqueColumnName = AvalonHarmony.getUniqueColumnName(name);
     column.add(uniqueColumnName , "DRAWING");
     column.setElementIdOfDrawing(uniqueColumnName, elemId);
 

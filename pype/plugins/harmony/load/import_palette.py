@@ -10,6 +10,7 @@ class ImportPaletteLoader(api.Loader):
     families = ["palette"]
     representations = ["plt"]
     label = "Import Palette"
+    icon = "eyedropper"
 
     def load(self, context, name=None, namespace=None, data=None):
         name = self.load_palette(context["representation"])

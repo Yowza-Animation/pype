@@ -40,38 +40,8 @@ TemplateLoader.prototype.loadContainer = function (args) {
     var assetName = args[1];
     var subset = args[2];
     var groupId = args[3];
-    // Get the current group
-    // Below does not work when the Node View is docked
-    // var nodeViewWidget = $.app.getWidgetByName('Node View');
-    // if (!nodeViewWidget) {
-    //     $.alert('You must have a Node View open!', 'No Node View!', 'OK!');
-    //     return;
-    // }
-    //
-    // nodeViewWidget.setFocus();
 
-    nodeView = '';
-    for (i = 0; i < 200; i++) {
-        nodeView = 'View' + (i);
-        if (view.type(nodeView) == 'Node View') {
-            break;
-        }
-    }
-
-    if (!nodeView) {
-        $.alert('You must have a Node View open!',
-            'No Node View is currently open!\n' +
-            'Open a Node View and Try Again.',
-            'OK!');
-        return;
-    }
-
-    var currentGroup;
-    if (!nodeView) {
-        currentGroup = doc.root;
-    } else {
-        currentGroup = doc.$node(view.group(nodeView));
-    }
+    var currentGroup = AvalonHarmony.getCurrentGroup()
 
     // Get a unique iterative name for the container group
     var num = 0;

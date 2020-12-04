@@ -2,9 +2,9 @@ import json
 import os
 import uuid
 
-import pype.lib
-
 from avalon import api, harmony
+
+import pype.lib
 
 copy_files = """function copyFile(srcFilename, dstFilename)
 {
@@ -20,22 +20,7 @@ var SGITransparencyMode = 0; //Premultiplied wih Black
 var LayeredPSDTransparencyMode = 1; //Straight
 var FlatPSDTransparencyMode = 2; //Premultiplied wih White
 
-function getUniqueColumnName( column_prefix )
-{
-    var suffix = 0;
-    // finds if unique name for a column
-    var column_name = column_prefix;
-    while(suffix < 2000)
-    {
-        if(!column.type(column_name))
-        break;
-
-        suffix = suffix + 1;
-        column_name = column_prefix + "_" + suffix;
-    }
-    return column_name;
-}
-
+ 
 function import_files(args)
 {
     var root = args[0];
@@ -74,7 +59,7 @@ function import_files(args)
         return null; // no read to add.
     }
 
-    var uniqueColumnName = getUniqueColumnName(name);
+    var uniqueColumnName = AvalonHarmony.getUniqueColumnName(name);
     column.add(uniqueColumnName , "DRAWING");
     column.setElementIdOfDrawing(uniqueColumnName, elemId);
 
@@ -230,20 +215,22 @@ class BackgroundLoader(api.Loader):
     """Load images
     Stores the imported asset in a container named after the asset.
     """
-    families = ["background"]
-    representations = ["json"]
-    label = "Load as Background Image"
+    families = ["scene", "render", "image", "background", "plate"]
+    representations = ["psd", "tga", "exr", "sgi"]
+    label = "Import to Layers"
+    icon = "list-ol"
 
     def load(self, context, name=None, namespace=None, data=None):
+
+        self_name = self.__class__.__name__
 
         # Create a uuid to be added to the container node's attrs
         group_id = "{}".format(uuid.uuid4())
         # Add this container's uuid to the scene data
         data["uuid"] = group_id
 
-
-        with open(self.fname) as json_file:
-            data = json.load(json_file)
+        # with open(self.fname) as json_file:
+        #     data = json.load(json_file)
 
         layers = list()
 
@@ -258,8 +245,16 @@ class BackgroundLoader(api.Loader):
         bg_folder = os.path.dirname(self.fname)
 
         subset_name = context["subset"]["name"]
-        # read_node_name += "_{}".format(uuid.uuid4())
-        container_nodes = []
+
+        current_group = harmony.send({
+            "function": "AvalonHarmony.getCurrentGroup",
+            "args": []})["result"]
+
+        container_node = harmony.send({
+            "function": "AvalonHarmony.createNode",
+            "args": [name, "GROUP", current_group, 0, 0, 0]})["result"]
+
+        container_children = []
 
         for layer in sorted(layers):
             file_to_import = [
@@ -272,16 +267,14 @@ class BackgroundLoader(api.Loader):
                     "args": ["Top", file_to_import, layer, 1]
                 }
             )["result"]
-            container_nodes.append(read_node)
-
-
+            container_children.append(read_node)
 
         return harmony.containerise(
             name=subset_name,
-            namespace=namespace,
-            node=subset_name,
+            namespace=container_node,
+            node=container_node,
             context=context,
-            loader=self.__class__.__name__,
+            loader=self_name,
             suffix=None,
             data=data
         )

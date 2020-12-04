@@ -12,6 +12,8 @@ class ImportTemplateLoader(api.Loader):
     families = ["scene", "workfile"]
     representations = ["*"]
     label = "Import Template"
+    icon = "arrow-down"
+    order = 2
 
     def load(self, context, name=None, namespace=None, data=None):
         # Import template.
@@ -59,3 +61,5 @@ class ImportWorkfileLoader(ImportTemplateLoader):
     families = ["workfile"]
     representations = ["zip"]
     label = "Import Workfile"
+    icon = "arrow-down"
+    order = 2

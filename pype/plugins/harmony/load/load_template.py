@@ -25,6 +25,7 @@ class TemplateLoader(api.Loader):
     representations = ["*"]
     label = "Load Template"
     icon = "gift"
+    order = 0
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
@@ -92,7 +93,6 @@ class TemplateLoader(api.Loader):
         """
 
         container_to_update = container["objectName"]
-        container_to_update_id = str(container["data"]["uuid"])
         self_name = self.__class__.__name__
         context = get_representation_context(representation)
 
@@ -115,9 +115,10 @@ class TemplateLoader(api.Loader):
                                       container.get("data")
                                       )
 
+        self._set_red(container_to_update)
+        self._set_green(updated_container)
+
         if not ask_for_columns_update:
-            self._set_red(container_to_update)
-            self._set_green(updated_container)
             return
 
         success = harmony.send(
@@ -127,6 +128,7 @@ class TemplateLoader(api.Loader):
             }
         )["result"]
 
+        return success
 
     def remove(self, container):
         """Remove container.

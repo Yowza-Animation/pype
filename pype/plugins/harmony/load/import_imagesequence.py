@@ -18,7 +18,9 @@ class ImageSequenceLoader(api.Loader):
 
     families = ["shot", "render", "image", "plate", "reference"]
     representations = ["jpeg", "png", "jpg"]
-    label = "Load Image Sequence"
+    label = "Import Image / Image Sequence"
+    icon = "arrow-down"
+    order = 2
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
@@ -45,8 +47,9 @@ class ImageSequenceLoader(api.Loader):
         asset = context["asset"]["name"]
         subset = context["subset"]["name"]
 
-        group_id = str(uuid.uuid4())
-
+        # Create a uuid to be added to the container node's attrs
+        group_id = "{}".format(uuid.uuid4())
+        # Add this container's uuid to the scene data
         data["uuid"] = group_id
 
         container_read = harmony.send(
@@ -96,7 +99,7 @@ class ImageSequenceLoader(api.Loader):
                 ).replace("\\", "/")
             )
 
-        harmony.send(
+        success = harmony.send(
             {
                 "function": f"PypeHarmony.Loaders.{self_name}.replaceFiles",
                 "args": [files, node, 1]
@@ -120,6 +123,8 @@ class ImageSequenceLoader(api.Loader):
         harmony.imprint(
             node, {"representation": str(representation["_id"])}
         )
+
+        return success
 
     def remove(self, container):
         """Remove loaded container.

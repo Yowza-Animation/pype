@@ -15,35 +15,7 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Image Sequence loader JS code.
  */
-var ImageSequenceLoader = function() {
-    this.PNGTransparencyMode = 0; // Premultiplied wih Black
-    this.TGATransparencyMode = 0; // Premultiplied wih Black
-    this.SGITransparencyMode = 0; // Premultiplied wih Black
-    this.LayeredPSDTransparencyMode = 1; // Straight
-    this.FlatPSDTransparencyMode = 2; // Premultiplied wih White
-};
-
-
-/**
- * Get unique column name.
- * @function
- * @param  {string}  columnPrefix Column name.
- * @return {string}  Unique column name.
- */
-ImageSequenceLoader.prototype.getUniqueColumnName = function(columnPrefix) {
-    var suffix = 0;
-    // finds if unique name for a column
-    var columnName = columnPrefix;
-    while (suffix < 2000) {
-        if (!column.type(columnName)) {
-            break;
-        }
-
-        suffix = suffix + 1;
-        columnName = columnPrefix + '_' + suffix;
-    }
-    return columnName;
-};
+var ImageSequenceLoader = function() {};
 
 
 /**
@@ -77,28 +49,20 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
         return null;
     }
 
-    // Get the current group
-    var nodeViewWidget = $.app.getWidgetByName('Node View');
-    if (!nodeViewWidget) {
-        $.alert('You must have a Node View open!', 'No Node View!', 'OK!');
-        return;
-    }
+    PNGTransparencyMode = 0; // Premultiplied wih Black
+    TGATransparencyMode = 0; // Premultiplied wih Black
+    SGITransparencyMode = 0; // Premultiplied wih Black
+    LayeredPSDTransparencyMode = 1; // Straight
+    FlatPSDTransparencyMode = 2; // Premultiplied wih White
 
-    nodeViewWidget.setFocus();
-    var nodeView = view.currentView();
-    var currentGroup = null;
-    if (!nodeView) {
-        currentGroup = doc.root;
-    } else {
-        currentGroup = doc.$node(view.group(nodeView));
-    }
+    var currentGroup = AvalonHarmony.getCurrentGroup()
+
     // Get a unique iterative name for the container read node
     var num = 0;
     var name = '';
     do {
         name = asset + '_' + (num++) + '_' + subset;
     } while (currentGroup.getNodeByName(name) != null);
-
 
     extension = filename.substr(pos+1).toLowerCase();
     if (extension == 'jpeg') {
@@ -123,7 +87,7 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
         return null; // no read to add.
     }
 
-    var uniqueColumnName = this.getUniqueColumnName(name);
+    var uniqueColumnName = AvalonHarmony.getUniqueColumnName(name);
     column.add(uniqueColumnName, 'DRAWING');
     column.setElementIdOfDrawing(uniqueColumnName, elemId);
     var read = node.add(currentGroup, name, 'READ', 0, 0, 0);
@@ -139,21 +103,21 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
         read, frame.current(), 'applyMatteToColor'
     );
     if (extension === 'png') {
-        transparencyModeAttr.setValue(this.PNGTransparencyMode);
+        transparencyModeAttr.setValue(PNGTransparencyMode);
     }
     if (extension === 'tga') {
-        transparencyModeAttr.setValue(this.TGATransparencyMode);
+        transparencyModeAttr.setValue(TGATransparencyMode);
     }
     if (extension === 'sgi') {
-        transparencyModeAttr.setValue(this.SGITransparencyMode);
+        transparencyModeAttr.setValue(SGITransparencyMode);
     }
     if (extension === 'psd') {
-        transparencyModeAttr.setValue(this.FlatPSDTransparencyMode);
+        transparencyModeAttr.setValue(FlatPSDTransparencyMode);
     }
     if (extension === 'jpg') {
-        transparencyModeAttr.setValue(this.LayeredPSDTransparencyMode);
+        transparencyModeAttr.setValue(LayeredPSDTransparencyMode);
     }
-
+    MessageLog.trace("-----------------------> 4")
     var drawingFilePath;
     var timing;
     node.linkAttr(read, 'DRAWING.ELEMENT', uniqueColumnName);
@@ -180,12 +144,14 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
             column.setEntry(uniqueColumnName, 1, timing, timing.toString());
         }
     }
+
     var greenColor = new ColorRGBA(0, 255, 0, 255);
     node.setColor(read, greenColor);
 
     // Add uuid to attribute of the container read node
     node.createDynamicAttr(read, 'STRING', 'uuid', 'uuid', false);
     node.setTextAttr(read, 'uuid', 1.0, groupId);
+    MessageLog.trace("6")
     return read;
 };
 
