@@ -1,6 +1,6 @@
 /* global PypeHarmony:writable, include */
 // ***************************************************************************
-// *                        ImportLoadImageSequenceLoader                        *
+// *                        ImportImageSequenceLoader                        *
 // ***************************************************************************
 
 

@@ -12,7 +12,7 @@ import pype.lib
 
 
 
-class LoadImageSequenceLoader(api.Loader):
+class LoadImageSequence(api.Loader):
     """Load image sequences.
 
     Stores the imported asset in a container named after the asset.

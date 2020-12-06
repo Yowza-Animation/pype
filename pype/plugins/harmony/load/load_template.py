@@ -12,7 +12,7 @@ from avalon import api, harmony
 from avalon.pipeline import get_representation_context
 
 
-class TemplateLoader(api.Loader):
+class LoadTemplateLoader(api.Loader):
     """Load Harmony template as container.
 
     .. todo::

@@ -213,7 +213,7 @@ replace_files
 """
 
 
-class BackgroundLoader(api.Loader):
+class ImportBackgroundLoader(api.Loader):
     """Load images
     Stores the imported asset in a container named after the asset.
     """

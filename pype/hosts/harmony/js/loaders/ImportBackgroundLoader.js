@@ -1,6 +1,6 @@
 /* global PypeHarmony:writable, include */
 // ***************************************************************************
-// *                        BackgroundLoader                                 *
+// *                        ImportBackgroundLoader                           *
 // ***************************************************************************
 
 
@@ -15,9 +15,9 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Background Image loader JS code.
  */
-var BackgroundLoader = function() {};
+var ImportBackgroundLoader = function() {};
 
-BackgroundLoader.prototype.import_files = function(args)
+ImportBackgroundLoader.prototype.import_files = function(args)
 {
     var root = args[0];
     var files = args[1];
@@ -130,4 +130,4 @@ BackgroundLoader.prototype.import_files = function(args)
 }
 
 // add self to Pype Loaders
-PypeHarmony.Loaders.BackgroundLoader = new BackgroundLoader();
+PypeHarmony.Loaders.ImportBackgroundLoader = new ImportBackgroundLoader();

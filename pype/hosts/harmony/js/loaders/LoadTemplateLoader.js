@@ -1,6 +1,6 @@
 /* global PypeHarmony:writable, include */
 // ***************************************************************************
-// *                        TemplateLoader                                   *
+// *                        LoadTemplateLoader                               *
 // ***************************************************************************
 
 
@@ -15,7 +15,7 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Image Sequence loader JS code.
  */
-var TemplateLoader = function () {
+var LoadTemplateLoader = function () {
 };
 
 
@@ -34,7 +34,7 @@ var TemplateLoader = function () {
  *  groupId       // unique ID (uuid4)
  * ];
  */
-TemplateLoader.prototype.loadContainer = function (args) {
+LoadTemplateLoader.prototype.loadContainer = function (args) {
     var doc = $.scn;
     var templatePath = args[0];
     var assetName = args[1];
@@ -76,7 +76,7 @@ TemplateLoader.prototype.loadContainer = function (args) {
  * @return {boolean}             Success
  * @todo   This is work in progress.
  */
-TemplateLoader.prototype.replaceNode = function (args) {
+LoadTemplateLoader.prototype.replaceNode = function (args) {
     var doc = $.scn;
     var link, inNode, inPort, outPort, outNode, success;
 
@@ -192,7 +192,7 @@ TemplateLoader.prototype.replaceNode = function (args) {
 };
 
 
-TemplateLoader.prototype.askForColumnsUpdate = function () {
+LoadTemplateLoader.prototype.askForColumnsUpdate = function () {
     // Ask user if they want to also update columns and linked attributes here
 
     msg = "Choose \"Yes\" to reconnect all \n" +
@@ -228,4 +228,4 @@ TemplateLoader.prototype.askForColumnsUpdate = function () {
 };
 
 // add self to Pype Loaders
-PypeHarmony.Loaders.TemplateLoader = new TemplateLoader();
+PypeHarmony.Loaders.LoadTemplateLoader = new LoadTemplateLoader();
