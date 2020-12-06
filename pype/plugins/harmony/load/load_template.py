@@ -37,6 +37,9 @@ class TemplateLoader(api.Loader):
             data (dict, optional): Additional data passed into loader.
 
         """
+        asset_name = context["asset"]["name"]
+        subset_name = context["subset"]["name"]
+
         # Load template.
         self_name = self.__class__.__name__
         temp_dir = tempfile.mkdtemp()
@@ -55,8 +58,8 @@ class TemplateLoader(api.Loader):
             {
                 "function": f"PypeHarmony.Loaders.{self_name}.loadContainer",
                 "args": [template_path,
-                         context["asset"]["name"],
-                         context["subset"]["name"],
+                         asset_name,
+                         subset_name,
                          group_id]
             }
         )["result"]
@@ -71,7 +74,7 @@ class TemplateLoader(api.Loader):
         shutil.rmtree(temp_dir)
 
         # We must validate the group_node
-        return harmony.containerise(
+        container = harmony.containerise(
             name=name,
             namespace=container_group,
             node=container_group,
@@ -80,6 +83,13 @@ class TemplateLoader(api.Loader):
             suffix=None,
             data=data
         )
+
+        if container:
+            self.notifier.show_notice("Loaded Template Subset: "
+                        f"\"{subset_name}\" for: \"{asset_name}\" "
+                        f"as container: \"{container_group}\"")
+
+        return container
 
     def update(self, container, representation, rename_container=True):
         """Update loaded containers.
@@ -115,8 +125,19 @@ class TemplateLoader(api.Loader):
                                       container.get("data")
                                       )
 
-        self._set_red(container_to_update)
-        self._set_green(updated_container)
+        # Colour node.
+        if pype.lib.is_latest(representation):
+            harmony.send(
+                {
+                    "function": "PypeHarmony.setColor",
+                    "args": [updated_container, [0, 255, 0, 255]]
+                })
+        else:
+            harmony.send(
+                {
+                    "function": "PypeHarmony.setColor",
+                    "args": [updated_container, [255, 0, 0, 255]]
+                })
 
         if not ask_for_columns_update:
             return

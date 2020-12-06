@@ -15,17 +15,9 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Background Image loader JS code.
  */
-var BackgroundLoader = function() {
-    this.PNGTransparencyMode = 0; // Premultiplied wih Black
-    this.TGATransparencyMode = 0; // Premultiplied wih Black
-    this.SGITransparencyMode = 0; // Premultiplied wih Black
-    this.LayeredPSDTransparencyMode = 1; // Straight
-    this.FlatPSDTransparencyMode = 2; // Premultiplied wih White
-};
+var BackgroundLoader = function() {};
 
-
-
-function import_files(args)
+BackgroundLoader.prototype.import_files = function(args)
 {
     var root = args[0];
     var files = args[1];
@@ -39,6 +31,12 @@ function import_files(args)
     var pos = filename.lastIndexOf(".");
     if( pos < 0 )
         return null;
+
+    PNGTransparencyMode = 0; // Premultiplied wih Black
+    TGATransparencyMode = 0; // Premultiplied wih Black
+    SGITransparencyMode = 0; // Premultiplied wih Black
+    LayeredPSDTransparencyMode = 1; // Straight
+    FlatPSDTransparencyMode = 2; // Premultiplied wih White
 
     extension = filename.substr(pos+1).toLowerCase();
 
@@ -57,9 +55,10 @@ function import_files(args)
         extension.toUpperCase(),
         vectorFormat
     );
+
     if (elemId == -1)
     {
-        // hum, unknown file type most likely -- let's skip it.
+        // Skip unknown files
         return null; // no read to add.
     }
 
@@ -68,11 +67,13 @@ function import_files(args)
     column.setElementIdOfDrawing(uniqueColumnName, elemId);
 
     var read = node.add(root, name, "READ", 0, 0, 0);
+
     var transparencyAttr = node.getAttr(
         read, frame.current(), "READ_TRANSPARENCY"
     );
-    var opacityAttr = node.getAttr(read, frame.current(), "OPACITY");
     transparencyAttr.setValue(true);
+
+    var opacityAttr = node.getAttr(read, frame.current(), "OPACITY");
     opacityAttr.setValue(true);
 
     var alignmentAttr = node.getAttr(read, frame.current(), "ALIGNMENT_RULE");

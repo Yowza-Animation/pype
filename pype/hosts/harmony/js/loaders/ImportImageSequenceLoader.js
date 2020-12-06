@@ -1,6 +1,6 @@
 /* global PypeHarmony:writable, include */
 // ***************************************************************************
-// *                        ImageSequenceLoader                              *
+// *                        ImportLoadImageSequenceLoader                        *
 // ***************************************************************************
 
 
@@ -15,7 +15,7 @@ if (typeof PypeHarmony !== 'undefined') {
  * @namespace
  * @classdesc Image Sequence loader JS code.
  */
-var ImageSequenceLoader = function() {};
+var ImportImageSequenceLoader = function() {};
 
 
 /**
@@ -25,7 +25,7 @@ var ImageSequenceLoader = function() {};
  * @return {string}  Read node name
  *
  * @example
- * // Agrguments are in following order:
+ * // Arguments are in following order:
  * var args = [
  *    files, // Files in file sequences.
  *    asset, // Asset name.
@@ -34,7 +34,7 @@ var ImageSequenceLoader = function() {};
  *    groupId // Unique group ID (uuid4).
  * ];
  */
-ImageSequenceLoader.prototype.importFiles = function(args) {
+ImportImageSequenceLoader.prototype.importFiles = function(args) {
     var doc = $.scn;
     var files = args[0];
     var asset = args[1];
@@ -55,7 +55,7 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
     LayeredPSDTransparencyMode = 1; // Straight
     FlatPSDTransparencyMode = 2; // Premultiplied wih White
 
-    var currentGroup = AvalonHarmony.getCurrentGroup()
+    var currentGroup = PypeHarmony.getCurrentGroup()
 
     // Get a unique iterative name for the container read node
     var num = 0;
@@ -170,9 +170,8 @@ ImageSequenceLoader.prototype.importFiles = function(args) {
  *    startFrame // Sequence starting frame
  * ];
  */
-
-
-ImageSequenceLoader.prototype.replaceFiles = function(args) {
+ImportImageSequenceLoader.prototype.replaceFiles = function(args)
+{
     var files = args[0];
     MessageLog.trace(files);
     MessageLog.trace(files.length);
@@ -246,4 +245,4 @@ ImageSequenceLoader.prototype.replaceFiles = function(args) {
 };
 
 // add self to Pype Loaders
-PypeHarmony.Loaders.ImageSequenceLoader = new ImageSequenceLoader();
+PypeHarmony.Loaders.ImportImageSequenceLoader = new ImportImageSequenceLoader();

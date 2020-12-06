@@ -30,7 +30,7 @@ class ExtractTemplate(pype.api.Extractor):
         self.log.info("dependencies: {0}".format(dependencies))
 
         current_group = harmony.send({
-            "function": "AvalonHarmony.getCurrentGroup",
+            "function": "PypeHarmony.getCurrentGroup",
             "args": []})["result"]
 
         # Get backdrops.

@@ -134,6 +134,40 @@ PypeHarmony.exportTemplate = function(args) {
 };
 
 /**
+ * Get the current group in Harmony
+ * @function
+ * @return {String} A string representing the currently open group in the
+ * Node View, else "Top" if no Node View is currently open
+ */
+PypeHarmony.getCurrentGroup = function () {
+    var doc = $.scn;
+    nodeView = '';
+    for (i = 0; i < 200; i++) {
+        nodeView = 'View' + (i);
+        if (view.type(nodeView) == 'Node View') {
+            break;
+        }
+    }
+
+    if (!nodeView) {
+        $.alert('You must have a Node View open!',
+            'No Node View is currently open!\n' +
+            'Open a Node View and Try Again.',
+            'OK!');
+        return;
+    }
+
+    var currentGroup;
+    if (!nodeView) {
+        currentGroup = doc.root;
+    } else {
+        currentGroup = doc.$node(view.group(nodeView));
+    }
+
+    return currentGroup;
+};
+
+/**
  * Toggle instance in Harmony.
  * @function
  * @param {array} args  Instance name and value.
@@ -152,6 +186,29 @@ PypeHarmony.deleteNode = function(_node) {
     node.deleteNode(_node, true, true);
 };
 
+/**
+ * Get get children for specified group node.
+ * @function
+ * @param {array} args Arguments, see example.
+ *
+ * @example
+ * // arguments are in following order:
+ * var args = [
+ *  nodeName,
+ *  recursive,
+ * ];
+ */
+PypeHarmony.getChildren = function (args) {
+    nodePath = args[0]
+    recursive = args[1]
+    _node = $.scn.$node(nodePath);
+    var children = _node.subNodes(recursive)
+    var nodes = [];
+    for (n in children){
+        nodes.push(children[n].path)
+    }
+    return nodes
+};
 
 /**
  * Copy file.

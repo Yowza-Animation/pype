@@ -5,22 +5,24 @@ import uuid
 from pathlib import Path
 
 import clique
-from avalon import api, harmony
 
+from avalon import api, harmony
+from avalon.pipeline import get_representation_context
 import pype.lib
 
 
-class ImportImageSequenceLoader(api.Loader):
-    """Import image sequences.
+
+class LoadImageSequenceLoader(api.Loader):
+    """Load image sequences.
 
     Stores the imported asset in a container named after the asset.
     """
 
     families = ["scene", "shot", "render", "image", "plate", "reference"]
     representations = ["psd", "tga", "exr", "jpeg", "png", "jpg"]
-    label = "Import Image / Image Sequence"
-    icon = "arrow-down"
-    order = 2
+    label = "Load Image / Image Sequence"
+    icon = "gift"
+    order = 0
 
     def load(self, context, name=None, namespace=None, data=None):
         """Plugin entry point.
@@ -32,21 +34,15 @@ class ImportImageSequenceLoader(api.Loader):
             data (dict, optional): Additional data passed into loader.
 
         """
-
-        asset_name = context["asset"]["name"]
-        subset_name = context["subset"]["name"]
-
-        fname = Path(self.fname)
         self_name = self.__class__.__name__
+
+        path = api.get_representation_path(context["representation"])
         collections, remainder = clique.assemble(
-            os.listdir(fname.parent.as_posix())
+            os.listdir(os.path.dirname(path))
         )
-        files = []
-        if collections:
-            for f in list(collections[0]):
-                files.append(fname.parent.joinpath(f).as_posix())
-        else:
-            files.append(fname.parent.joinpath(remainder[0]).as_posix())
+
+        asset = context["asset"]["name"]
+        subset = context["subset"]["name"]
 
         # Create a uuid to be added to the container node's attrs
         group_id = "{}".format(uuid.uuid4())
@@ -55,12 +51,12 @@ class ImportImageSequenceLoader(api.Loader):
 
         container_read = harmony.send(
             {
-                "function": f"PypeHarmony.Loaders.{self_name}.importFiles",
-                "args": [files, asset_name, subset_name, 1, group_id]
+                "function": f"PypeHarmony.Loaders.{self_name}.loadFiles",
+                "args": [[path], asset, subset, 1, group_id]
             }
         )["result"]
 
-        container = harmony.containerise(
+        return harmony.containerise(
             name=name,
             namespace=container_read,
             node=container_read,
@@ -69,15 +65,6 @@ class ImportImageSequenceLoader(api.Loader):
             suffix=None,
             data=data
         )
-
-        if container:
-            self.notifier.show_notice(
-                "Loaded Template Subset: "
-                f"\"{subset_name}\" for: \"{asset_name}\" "
-                f"as container: \"{container_read}\""
-            )
-
-        return container
 
     def update(self, container, representation):
         """Update loaded containers.
@@ -89,51 +76,38 @@ class ImportImageSequenceLoader(api.Loader):
         """
         self_name = self.__class__.__name__
         node = container["objectName"]
+        context = get_representation_context(representation)
+        asset = context["asset"]["name"]
+        subset = context["subset"]["name"]
 
         collections, remainder = clique.assemble(
             os.listdir(os.path.dirname(self.fname))
         )
-        files = []
-        if collections:
-            for f in list(collections[0]):
-                files.append(
-                    os.path.join(
-                        os.path.dirname(self.fname), f
-                    ).replace("\\", "/")
-                )
-        else:
-            files.append(
-                os.path.join(
-                    os.path.dirname(self.fname), remainder[0]
-                ).replace("\\", "/")
-            )
 
-        success = harmony.send(
-            {
-                "function": f"PypeHarmony.Loaders.{self_name}.replaceFiles",
-                "args": [files, node, 1]
-            }
-        )
+        updated_container = self.load(context,
+                                      container["name"],
+                                      container.get("namespace"),
+                                      container.get("data")
+                                      )
 
         # Colour node.
         if pype.lib.is_latest(representation):
             harmony.send(
                 {
                     "function": "PypeHarmony.setColor",
-                    "args": [node, [0, 255, 0, 255]]
+                    "args": [updated_container, [0, 255, 0, 255]]
                 })
         else:
             harmony.send(
                 {
                     "function": "PypeHarmony.setColor",
-                    "args": [node, [255, 0, 0, 255]]
+                    "args": [updated_container, [255, 0, 0, 255]]
                 })
 
         harmony.imprint(
             node, {"representation": str(representation["_id"])}
         )
 
-        return success
 
     def remove(self, container):
         """Remove loaded container.

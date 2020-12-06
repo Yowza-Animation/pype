@@ -5,6 +5,8 @@ import uuid
 from avalon import api, harmony
 
 import pype.lib
+import psd_tools
+import PIL
 
 copy_files = """function copyFile(srcFilename, dstFilename)
 {
@@ -216,7 +218,7 @@ class BackgroundLoader(api.Loader):
     Stores the imported asset in a container named after the asset.
     """
     families = ["scene", "render", "image", "background", "plate"]
-    representations = ["psd", "tga", "exr", "sgi"]
+    representations = ["psd", "exr"]
     label = "Import to Layers"
     icon = "list-ol"
 
@@ -229,10 +231,9 @@ class BackgroundLoader(api.Loader):
         # Add this container's uuid to the scene data
         data["uuid"] = group_id
 
-        # with open(self.fname) as json_file:
-        #     data = json.load(json_file)
+        layers = []
 
-        layers = list()
+        data = self.get_image_layers(data, context)
 
         for child in data['children']:
             if child.get("filename"):
@@ -247,7 +248,7 @@ class BackgroundLoader(api.Loader):
         subset_name = context["subset"]["name"]
 
         current_group = harmony.send({
-            "function": "AvalonHarmony.getCurrentGroup",
+            "function": "PypeHarmony.getCurrentGroup",
             "args": []})["result"]
 
         container_node = harmony.send({
@@ -281,12 +282,9 @@ class BackgroundLoader(api.Loader):
 
     def update(self, container, representation):
 
-        path = api.get_representation_path(representation)
-
-        with open(path) as json_file:
-            data = json.load(json_file)
-
-        layers = list()
+        context = representation["context"]
+        layers = []
+        data = container["data"]
 
         for child in data['children']:
             if child.get("filename"):
@@ -298,9 +296,7 @@ class BackgroundLoader(api.Loader):
                         print(layer["filename"])
                         layers.append(layer["filename"])
 
-        bg_folder = os.path.dirname(path)
-
-        path = api.get_representation_path(representation)
+        bg_folder = os.path.dirname(self.fname)
 
         print(container)
 
@@ -372,3 +368,22 @@ class BackgroundLoader(api.Loader):
 
     def switch(self, container, representation):
         self.update(container, representation)
+
+
+    def get_image_layers(self, data, context):
+
+        path = api.get_representation_path(context["representation"])
+
+        dirname, basename = os.path.split(path)
+        filename, ext = os.path.splitext(basename)
+
+        if ext == ".psd":
+            pass
+        elif ext == ".exr":
+            pass
+        elif ext == ".json":
+            with open(path) as json_file:
+                json_data = json.load(json_file)
+                data.update(json_data)
+
+        return data

@@ -41,7 +41,7 @@ TemplateLoader.prototype.loadContainer = function (args) {
     var subset = args[2];
     var groupId = args[3];
 
-    var currentGroup = AvalonHarmony.getCurrentGroup()
+    var currentGroup = PypeHarmony.getCurrentGroup()
 
     // Get a unique iterative name for the container group
     var num = 0;
@@ -181,9 +181,6 @@ TemplateLoader.prototype.replaceNode = function (args) {
             'value': JSON.stringify(metadata)
         });
     };
-
-    PypeHarmony.setColor([srcNode.path], [0, 255, 0, 255])
-    PypeHarmony.setColor([dstNode.path], [255, 0, 0, 255])
 
     // Delete the original node
     dstNode.remove(false, false);
