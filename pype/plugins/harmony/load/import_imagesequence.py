@@ -70,12 +70,11 @@ class ImportImageSequenceLoader(api.Loader):
             data=data
         )
 
-        if container:
+        if container and self.notifier:
             self.notifier.show_notice(
-                "Loaded Template Subset: "
-                f"\"{subset_name}\" for: \"{asset_name}\" "
-                f"as container: \"{container_read}\""
-            )
+                f"\"Loaded: \"<b>{asset_name}</b>\" -> Subset: <b>{subset_name}</b>\" "
+                f"to: \"<b>{container_read}</b>\"",
+                bg_color="#935BA2")
 
         return container
 

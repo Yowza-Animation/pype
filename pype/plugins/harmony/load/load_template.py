@@ -84,10 +84,11 @@ class LoadTemplateLoader(api.Loader):
             data=data
         )
 
-        if container:
-            self.notifier.show_notice("Loaded Template Subset: "
-                        f"\"{subset_name}\" for: \"{asset_name}\" "
-                        f"as container: \"{container_group}\"")
+        if container and self.notifier:
+            self.notifier.show_notice(
+                f"\"Loaded: \"<b>{asset_name}</b>\" -> Subset: <b>{subset_name}</b>\" "
+                f"to: \"<b>{container_group}</b>\"",
+                bg_color="#935BA2")
 
         return container
 

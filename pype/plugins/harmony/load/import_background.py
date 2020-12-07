@@ -218,7 +218,8 @@ class ImportBackgroundLoader(api.Loader):
     Stores the imported asset in a container named after the asset.
     """
     families = ["scene", "render", "image", "background", "plate"]
-    representations = ["psd", "exr"]
+    # @TODO: this action is WIP
+    representations = []#"psd", "exr"]
     label = "Import to Layers"
     icon = "list-ol"
 

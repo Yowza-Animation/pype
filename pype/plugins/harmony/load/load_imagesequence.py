@@ -12,14 +12,15 @@ import pype.lib
 
 
 
-class LoadImageSequence(api.Loader):
+class LoadImageSequenceLoader(api.Loader):
     """Load image sequences.
 
     Stores the imported asset in a container named after the asset.
     """
 
     families = ["scene", "shot", "render", "image", "plate", "reference"]
-    representations = ["psd", "tga", "exr", "jpeg", "png", "jpg"]
+    #@TODO: this action is WIP
+    representations = []#"psd", "tga", "exr", "jpeg", "png", "jpg"]
     label = "Load Image / Image Sequence"
     icon = "gift"
     order = 0
