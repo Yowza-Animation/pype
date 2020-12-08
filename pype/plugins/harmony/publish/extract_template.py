@@ -37,11 +37,16 @@ class ExtractTemplate(pype.api.Extractor):
         )["result"]
 
         # Get backdrops.
-        backdrops = {}
+        backdrops = []
         for dependency in dependencies:
-            for backdrop in self.get_backdrops(dependency, current_group):
-                backdrops[backdrop["title"]["text"]] = backdrop
-        unique_backdrops = [backdrops[x] for x in set(backdrops.keys())]
+            node_backdrops = self.get_backdrops(dependency)
+            for backdrop in node_backdrops:
+                if backdrop not in backdrops:
+                    backdrops.append(backdrop)
+
+        self.log.info("################")
+        self.log.info(f"Backdrops: {backdrops}")
+        self.log.info("################")
 
         # Get non-connected nodes within backdrops.
         all_nodes = instance.context.data.get("allNodes");
@@ -49,11 +54,12 @@ class ExtractTemplate(pype.api.Extractor):
         self.log.info("all_nodes: {0}".format(all_nodes))
 
         for node in [x for x in all_nodes if x not in dependencies]:
-            within_unique_backdrops = bool(
-                [x for x in self.get_backdrops(node, current_group) if x in unique_backdrops]
-            )
-            if within_unique_backdrops:
+            node_backdrops = self.get_backdrops(dependency)
+            if node_backdrops:
                 dependencies.append(node)
+            for backdrop in node_backdrops:
+                if backdrop not in backdrops:
+                    backdrops.append(backdrop)
 
         self.log.info("dependencies: {0}".format(dependencies))
 
@@ -63,9 +69,15 @@ class ExtractTemplate(pype.api.Extractor):
 
         self_name = self.__class__.__name__
 
-        export_result = harmony.send({
-            "function": f"PypeHarmony.Publish.{self_name}.exportTemplate",
-            "args": [unique_backdrops, dependencies, staging_dir, tpl_name]})["result"]
+        # export_result = harmony.send({
+        #     "function": f"PypeHarmony.Publish.{self_name}.exportTemplate",
+        #     "args": [backdrops, dependencies, staging_dir, tpl_name]})["result"]
+        export_result = harmony.send(
+            {
+                "function": f"PypeHarmony.exportTemplate",
+                "args": [backdrops, dependencies, tpl_name, staging_dir]
+            }
+        )["result"]
 
         # Prep representation.
         os.chdir(staging_dir)
@@ -91,7 +103,7 @@ class ExtractTemplate(pype.api.Extractor):
         instance.data["version_name"] = "{}_{}".format(
             instance.data["subset"], os.environ["AVALON_TASK"])
 
-    def get_backdrops(self, node: str, group: str) -> list:
+    def get_backdrops(self, node: str) -> list:
         """Get backdrops for the node.
 
         Args:
@@ -102,9 +114,11 @@ class ExtractTemplate(pype.api.Extractor):
 
         """
         self_name = self.__class__.__name__
+
         return harmony.send({
             "function": f"PypeHarmony.Publish.{self_name}.getBackdropsByNode",
-            "args": [node, group]})["result"]
+            "args": [node]}
+        )["result"]
 
     def get_dependencies(
             self, node: str, dependencies: list = None) -> list:

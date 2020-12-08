@@ -129,16 +129,29 @@ PypeHarmony.exportTemplate = function(args) {
     }
 
     Action.perform('copy()', 'Node View');
-
     selection.clearSelection();
     selection.addNodeToSelection(templateGroup);
     Action.perform('onActionEnterGroup()', 'Node View');
     Action.perform('paste()', 'Node View');
 
+    // We need to determine the offset deltas
+    var _refNode = doc.$node(nodes[0]);
+    var _copiedRefNode = doc.$node(
+        templateGroup + "/" + _refNode.name);
+
+    var deltaX = _refNode.x - _copiedRefNode.x;
+    var deltaY = _refNode.y - _copiedRefNode.y;
+
     // Recreate backdrops in group.
     for (var i = 0; i < backdrops.length; i++) {
-        MessageLog.trace(backdrops[i]);
-        Backdrop.addBackdrop(templateGroup, backdrops[i]);
+        var backdropData = backdrops[i]
+        var newData = JSON.parse(JSON.stringify(backdropData));
+        MessageLog.trace(backdropData);
+
+        // Now fix the backdrop pos with the delta offsets
+        newData["position"]["x"] = backdropData["position"]["x"] - deltaX;
+        newData["position"]["y"] = backdropData["position"]["y"] - deltaY;
+        Backdrop.addBackdrop(templateGroup, newData);
     }
 
     Action.perform('selectAll()', 'Node View' );
@@ -148,6 +161,8 @@ PypeHarmony.exportTemplate = function(args) {
     // created during the process.
     Action.perform('onActionUpToParent()', 'Node View');
     node.deleteNode(templateGroup, true, true);
+
+    return true;
 };
 
 /**

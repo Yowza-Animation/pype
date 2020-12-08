@@ -17,97 +17,28 @@ if (typeof PypeHarmony !== 'undefined') {
  */
 var ExtractTemplate = function() {};
 
-
-ExtractTemplate.prototype.exportTemplate = function(args) {
-    $.beginUndo();
-    try {
-        var doc = $.scene;
-        var backdrops = args[0];
-        var _nodes = args[1].map(function (x) { return doc.$node(x) });
-        var tpl_path = args[2];
-        var tpl_name = args[3];
-
-        var _refNode = doc.$node(_nodes[0])
-        var currentGroup = _refNode.group
-
-        // First disable interactive color mode
-        var prefs = $.app.preferences;
-        prefs.COLOR_ENABLE_INTERACTIVE_COLOR_RECOVERY = false;
-
-        // create the template group
-        templateGroup = currentGroup.addGroup("temp_group", false, false)
-
-        doc.selectedNodes = _nodes;
-
-        Action.perform("copy()", "Node View");
-        doc.selectedNodes = [templateGroup];
-        Action.perform("onActionEnterGroup()", "Node View");
-        Action.perform("paste()", "Node View");
-
-        // We need to determine the offset deltas
-        var _copiedRefNode = doc.$node(
-            templateGroup.path + "/" + _refNode.name);
-
-        var deltaX = _refNode.x - _copiedRefNode.x;
-        var deltaY = _refNode.y - _copiedRefNode.y;
-
-        // Recreate backdrops in group...
-        for (var i = 0; i < backdrops.length; i++)
-        {
-            var backdropData = backdrops[i]
-            // var newData = JSON.parse(JSON.stringify(backdropData));
-            // MessageLog.trace(backdropData);
-
-            // Now fix the backdrop pos with the delta offsets
-            backdropData["position"]["x"] = backdropData["position"]["x"] + deltaX;
-            backdropData["position"]["y"] = backdropData["position"]["y"] + deltaY;
-            Backdrop.addBackdrop(templateGroup, backdropData);
-        }
-
-        Action.perform("selectAll()", "Node View");
-        doc.selectedNodes = templateGroup.nodes
-        MessageLog.trace("****************************************************")
-        MessageLog.trace(tpl_name)
-        MessageLog.trace(tpl_path)
-        MessageLog.trace(doc.selectedNodes)
-        MessageLog.trace("****************************************************")
-        copyPaste.createTemplateFromSelection(tpl_name, tpl_path);
-        // Unfocus the group in Node view, delete all nodes and backdrops
-        // created during the process.
-        Action.perform("onActionUpToParent()", "Node View");
-        node.deleteNode(templateGroup, true, true);
-    }
-    catch(err) {
-        $.endUndo();
-        MessageLog.trace(err);
-        return false;
-    }
-    $.endUndo();
-    return true;
-};
-
-
 /**
  * Get backdrops for given node.
  * @function
- * @param   {string} probeNode Node path to probe for backdrops.
+ * @param   {string} _node Node path to probe for backdrops.
  * @return  {array} list of backdrops.
  */
-ExtractTemplate.prototype.getBackdropsByNode = function(probeNode, groupPath) {
-    var backdrops = Backdrop.backdrops(groupPath);
+ExtractTemplate.prototype.getBackdropsByNode = function(_node) {
+    doc = $.scn;
+    var backdrops = Backdrop.backdrops(doc.$node(_node).group.path);
     var valid_backdrops = [];
     for(var i=0; i<backdrops.length; i++)
     {
         var position = backdrops[i].position;
 
         var x_valid = false;
-        var node_x = node.coordX(probeNode);
+        var node_x = node.coordX(_node);
         if (position.x < node_x && node_x < (position.x + position.w)){
             x_valid = true;
         }
 
         var y_valid = false;
-        var node_y = node.coordY(probeNode);
+        var node_y = node.coordY(_node);
         if (position.y < node_y && node_y < (position.y + position.h)){
             y_valid = true;
         }
