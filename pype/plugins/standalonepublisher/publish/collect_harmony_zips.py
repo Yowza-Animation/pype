@@ -26,9 +26,9 @@ class CollectHarmonyZips(pyblish.api.InstancePlugin):
         subset_name = instance.data.get("subset", "sceneMain")
         anatomy_data = instance.context.data["anatomyData"]
         repres = instance.data["representations"]
-        files = repres[0]["files"]
+        path = repres[0]["files"]
 
-        if files.endswith(".zip"):
+        if path.endswith(".zip"):
             # A zip file was dropped
             instance_name = f"{asset_name}_{subset_name}"
             task = instance.data.get("task", "harmonyIngest")

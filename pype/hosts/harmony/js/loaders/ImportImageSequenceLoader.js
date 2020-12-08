@@ -55,7 +55,7 @@ ImportImageSequenceLoader.prototype.importFiles = function(args) {
     LayeredPSDTransparencyMode = 1; // Straight
     FlatPSDTransparencyMode = 2; // Premultiplied wih White
 
-    var currentGroup = PypeHarmony.getCurrentGroup()
+    var currentGroup = doc.$node(PypeHarmony.getCurrentGroup());
 
     // Get a unique iterative name for the container read node
     var num = 0;

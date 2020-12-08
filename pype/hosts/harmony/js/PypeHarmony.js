@@ -101,14 +101,31 @@ PypeHarmony.setColor = function(nodes, rgba) {
  *
  * @example
  * // arguments are in this order:
- * var args = [backdrops, nodes, templateFilename, templateDir];
+ * var args = [
+ *              backdrops,
+ *              nodes,
+ *              templateFilename,
+ *              templateDir
+ *              ];
  *
  */
 PypeHarmony.exportTemplate = function(args) {
+    backdrops = args[0]
+    nodes = args[1]
+    filename = args[2]
+    folder = args[3]
+
+    // First disable interactive color mode
+    var prefs = $.app.preferences;
+    prefs.COLOR_ENABLE_INTERACTIVE_COLOR_RECOVERY = false;
+
+    var tempNode = node.add('Top', 'temp_note', 'NOTE', 0, 0, 0);
+    var templateGroup = node.createGroup(tempNode, 'temp_group');
+    node.deleteNode( templateGroup + '/temp_note' );
 
     selection.clearSelection();
-    for (var f = 0; f < args[1].length; f++) {
-        selection.addNodeToSelection(args[1][f]);
+    for (var i = 0; i < nodes.length; i++) {
+        selection.addNodeToSelection(nodes[i]);
     }
 
     Action.perform('copy()', 'Node View');
@@ -119,13 +136,13 @@ PypeHarmony.exportTemplate = function(args) {
     Action.perform('paste()', 'Node View');
 
     // Recreate backdrops in group.
-    for (var i = 0; i < args[0].length; i++) {
-        MessageLog.trace(args[0][i]);
-        Backdrop.addBackdrop(templateGroup, args[0][i]);
+    for (var i = 0; i < backdrops.length; i++) {
+        MessageLog.trace(backdrops[i]);
+        Backdrop.addBackdrop(templateGroup, backdrops[i]);
     }
 
     Action.perform('selectAll()', 'Node View' );
-    copyPaste.createTemplateFromSelection(args[2], args[3]);
+    copyPaste.createTemplateFromSelection(filename, folder);
 
     // Unfocus the group in Node view, delete all nodes and backdrops
     // created during the process.
@@ -164,7 +181,7 @@ PypeHarmony.getCurrentGroup = function () {
         currentGroup = doc.$node(view.group(nodeView));
     }
 
-    return currentGroup;
+    return currentGroup.path;
 };
 
 /**

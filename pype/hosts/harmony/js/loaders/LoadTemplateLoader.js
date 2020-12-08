@@ -41,7 +41,11 @@ LoadTemplateLoader.prototype.loadContainer = function (args) {
     var subset = args[2];
     var groupId = args[3];
 
-    var currentGroup = PypeHarmony.getCurrentGroup()
+    // First disable interactive color mode
+    var prefs = $.app.preferences;
+    prefs.COLOR_ENABLE_INTERACTIVE_COLOR_RECOVERY = false;
+
+    var currentGroup = doc.$node(PypeHarmony.getCurrentGroup());
 
     // Get a unique iterative name for the container group
     var num = 0;

@@ -29,6 +29,12 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
 
         var _refNode = doc.$node(_nodes[0])
         var currentGroup = _refNode.group
+
+        // First disable interactive color mode
+        var prefs = $.app.preferences;
+        prefs.COLOR_ENABLE_INTERACTIVE_COLOR_RECOVERY = false;
+
+        // create the template group
         templateGroup = currentGroup.addGroup("temp_group", false, false)
 
         doc.selectedNodes = _nodes;
@@ -46,9 +52,8 @@ ExtractTemplate.prototype.exportTemplate = function(args) {
         var deltaY = _refNode.y - _copiedRefNode.y;
 
         // Recreate backdrops in group...
-        // @TODO: eventually this should be in callback which does this in a batch
-        //  subprocess to the saved tpl in the temp dir.
-        for (var i = 0; i < backdrops.length; i++) {
+        for (var i = 0; i < backdrops.length; i++)
+        {
             var backdropData = backdrops[i]
             // var newData = JSON.parse(JSON.stringify(backdropData));
             // MessageLog.trace(backdropData);

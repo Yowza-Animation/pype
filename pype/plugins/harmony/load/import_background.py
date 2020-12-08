@@ -248,9 +248,12 @@ class ImportBackgroundLoader(api.Loader):
 
         subset_name = context["subset"]["name"]
 
-        current_group = harmony.send({
-            "function": "PypeHarmony.getCurrentGroup",
-            "args": []})["result"]
+        current_group = harmony.send(
+            {
+                "function": "PypeHarmony.getCurrentGroup",
+                "args": []
+            }
+        )["result"]
 
         container_node = harmony.send({
             "function": "AvalonHarmony.createNode",
