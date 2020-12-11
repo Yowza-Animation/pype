@@ -1,8 +1,8 @@
 import pythoncom
 
-import pyblish.api
-
 from avalon import photoshop
+
+import pyblish.api
 
 
 class CollectInstances(pyblish.api.ContextPlugin):

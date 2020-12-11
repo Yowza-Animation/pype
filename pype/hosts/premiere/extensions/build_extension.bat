@@ -8,13 +8,14 @@ rem !!! make sure you run windows power shell as admin
 set pwd="12PPROext581"
 
 echo ">>> creating certificate ..."
-ZXPSignCmd -selfSignedCert CZ Prague OrbiTools "Signing robot" %pwd% certificate.p12
+%YOWZA_PIPE_PATH%/utils/ZXPSignCmd -selfSignedCert CZ Prague OrbiTools "Signing robot" %pwd% certificate.p12
 echo ">>> building com.pype"
-ZXPSignCmd -sign com.pype/ pype.zxp certificate.p12 %pwd%
+%YOWZA_PIPE_PATH%/utils/ZXPSignCmd -sign com.pype/ extension.zxp certificate.p12 %pwd%
 echo ">>> building com.pype.rename"
-ZXPSignCmd -sign com.pype.rename/ pype_rename.zxp certificate.p12 %pwd%
+%YOWZA_PIPE_PATH%/utils/ZXPSignCmd -sign com.pype.rename/ pype_rename.zxp certificate.p12 %pwd%
 
 echo ">>> installing com.pype"
-ExManCmd.exe /install pype.zxp
+%YOWZA_PIPE_PATH%/utils/ExManCmd_Win/ExManCmd.exe /install extension.zxp
 echo ">>> installing com.pype.rename"
-ExManCmd.exe /install pype_rename.zxp
+%YOWZA_PIPE_PATH%/utils/ExManCmd_Win/ExManCmd.exe /install pype_rename.zxp
+

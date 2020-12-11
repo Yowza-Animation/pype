@@ -1,29 +1,35 @@
-from __future__ import print_function
-import os.path
-# from googleapiclient.discovery import build
-# import google.oauth2.service_account as service_account
-# from googleapiclient import errors
+import os
+import requests
+
+# Import MinIO library.
+from minio import Minio
+
 from .abstract_provider import AbstractProvider
-# from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+
 from pype.api import Logger
 from pype.api import config
 from ..utils import time_function
 
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
-          'https://www.googleapis.com/auth/drive.file',
-          'https://www.googleapis.com/auth/drive.readonly']  # for write|delete
+# SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
+#           'https://www.googleapis.com/auth/drive.file',
+#           'https://www.googleapis.com/auth/drive.readonly']  # for write|delete
+
+YOWZA_S3_URL = os.getenv("YOWZA_S3_URL", "10.10.29.27:9000")  # "s3.yowzaanimation.ca") #
+YOWZA_S3_USER = os.getenv("YOWZA_S3_USER", "tPtkDF")
+YOWZA_S3_KEY = os.getenv("YOWZA_S3_KEY", "5Z1x3a6b2p")
 
 log = Logger().get_logger("SyncServer")
 
 
 class MinioHandler(AbstractProvider):
     """
-        Implementation of Google Drive API.
-        As GD API doesn't have real folder structure, 'tree' in memory
-        structure is build in constructor to map folder paths to folder ids,
-        which are used in API. Building of this tree might be expensive and
-        slow and should be run only when necessary. Currently is set to
-        lazy creation, created only after first call when necessary.
+        Implementation of min.io API.
+
+        # As GD API doesn't have real folder structure, 'tree' in memory
+        # structure is build in constructor to map folder paths to folder ids,
+        # which are used in API. Building of this tree might be expensive and
+        # slow and should be run only when necessary. Currently is set to
+        # lazy creation, created only after first call when necessary.
 
         Configuration for provider is in pype-config/presets/gdrive.json
 
@@ -36,8 +42,13 @@ class MinioHandler(AbstractProvider):
             }
           }
     """
-    FOLDER_STR = 'application/vnd.google-apps.folder'
-    MY_DRIVE_STR = 'My Drive'  # name of root folder of regular Google drive
+    # FOLDER_STR = 'application/vnd.google-apps.folder'
+    MY_DRIVE_STR = 'Yowza'  # name of root folder of regular Google drive
+
+    client = Minio(YOWZA_S3_URL,
+                   access_key=YOWZA_S3_USER,
+                   secret_key=YOWZA_S3_KEY,
+                   secure=False)
 
     def __init__(self, site_name, tree=None):
         self.presets = None
@@ -88,8 +99,8 @@ class MinioHandler(AbstractProvider):
         roots = {}
         for path in self.get_roots_config().values():
             if self.MY_DRIVE_STR in path:
-                roots[self.MY_DRIVE_STR] = self.service.files()\
-                                               .get(fileId='root').execute()
+                roots[self.MY_DRIVE_STR] = self.service.files() \
+                    .get(fileId='root').execute()
             else:
                 shared_drives = []
                 page_token = None

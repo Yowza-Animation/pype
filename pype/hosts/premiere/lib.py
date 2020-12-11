@@ -4,6 +4,7 @@ import shutil
 import json
 from pysync import walktree
 import requests
+import traceback
 
 from avalon import api
 from pype.widgets.message_window import message
@@ -184,6 +185,7 @@ def test_rest_api_server(env):
         return True
 
     except Exception as e:
+        log.error(traceback.format_exc())
         message(title="Pype Rest API static server is not running ",
                 message=("Before you can run Premiere, make sure "
                          "the system Tray Pype icon is running and "
